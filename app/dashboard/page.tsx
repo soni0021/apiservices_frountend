@@ -103,7 +103,7 @@ export default function ClientDashboard() {
   }, [activeTab])
 
   const setupWebSocket = (userId: string, token: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const apiUrl = 'https://apiservices-backend.onrender.com'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     
     try {

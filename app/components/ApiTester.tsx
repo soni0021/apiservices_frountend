@@ -169,7 +169,7 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
     setResponse(null)
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       const url = `${apiUrl}${currentEndpoint.endpoint}`
 
       const payload: Record<string, any> = {}
@@ -288,7 +288,7 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
             </span>
           </div>
           <code className="text-xs text-gray-600">
-            {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}{currentEndpoint.endpoint}
+            https://apiservices-backend.onrender.com{currentEndpoint.endpoint}
           </code>
         </div>
 

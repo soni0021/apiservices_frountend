@@ -42,20 +42,20 @@ export default function RegisterPage() {
 
       // Auto login after registration
       const loginResponse = await apiClient.post('/api/v1/auth/login', {
-        email: formData.email,
-        password: formData.password
+          email: formData.email,
+          password: formData.password
       })
 
       // Validate response
       if (!loginResponse.data || !loginResponse.data.access_token) {
         throw new Error('Invalid response from server')
-      }
+        }
 
       // Store tokens
       try {
-        localStorage.setItem('access_token', loginResponse.data.access_token)
-        localStorage.setItem('refresh_token', loginResponse.data.refresh_token)
-        localStorage.setItem('user', JSON.stringify(loginResponse.data.user))
+      localStorage.setItem('access_token', loginResponse.data.access_token)
+      localStorage.setItem('refresh_token', loginResponse.data.refresh_token)
+      localStorage.setItem('user', JSON.stringify(loginResponse.data.user))
       } catch (storageError) {
         console.error('localStorage error:', storageError)
         throw new Error('Failed to save login information. Please check your browser settings.')

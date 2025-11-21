@@ -34,9 +34,9 @@ export default function LoginPage() {
 
       // Store tokens
       try {
-        localStorage.setItem('access_token', response.data.access_token)
-        localStorage.setItem('refresh_token', response.data.refresh_token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
+      localStorage.setItem('access_token', response.data.access_token)
+      localStorage.setItem('refresh_token', response.data.refresh_token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
       } catch (storageError) {
         console.error('localStorage error:', storageError)
         throw new Error('Failed to save login information. Please check your browser settings.')

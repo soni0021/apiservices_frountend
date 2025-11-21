@@ -101,7 +101,7 @@ export default function AdminDashboard() {
   }, [])
 
   const setupWebSocket = (token: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const apiUrl = 'https://apiservices-backend.onrender.com'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     
     try {
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
 
   const fetchData = async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [usersRes, analyticsRes] = await Promise.all([
@@ -167,7 +167,7 @@ export default function AdminDashboard() {
 
   const fetchRealtimeStats = async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/realtime-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
   const fetchMarketplace = async () => {
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [industriesRes, categoriesRes, servicesRes] = await Promise.all([
@@ -200,7 +200,7 @@ export default function AdminDashboard() {
   const fetchSubscriptions = async () => {
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/subscriptions`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
 
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = 'https://apiservices-backend.onrender.com'
       await axios.post(
         `${apiUrl}/api/v1/admin/subscriptions`,
         {
