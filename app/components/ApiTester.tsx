@@ -464,19 +464,19 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b">
-        <h2 className="text-xl font-bold mb-2">API Testing</h2>
-        <p className="text-sm text-gray-600">
+      <div className="p-4 sm:p-6 border-b">
+        <h2 className="text-lg sm:text-xl font-bold mb-2">API Testing</h2>
+        <p className="text-xs sm:text-sm text-gray-600">
           Test your API endpoints with real requests. Select an endpoint and fill in the required fields.
         </p>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* API Key Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-900">Using API Key:</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-blue-900">Using API Key:</p>
               <code className="text-xs text-blue-700 mt-1 block break-all">{apiKey}</code>
             </div>
             <button
@@ -521,17 +521,17 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         </div>
 
         {/* Endpoint Info */}
-        <div className="bg-gray-50 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">{currentEndpoint.name}</p>
+        <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-gray-900">{currentEndpoint.name}</p>
               <p className="text-xs text-gray-600 mt-1">{currentEndpoint.description}</p>
             </div>
-            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded flex-shrink-0">
               {currentEndpoint.method}
             </span>
           </div>
-          <code className="text-xs text-gray-600">
+          <code className="text-xs text-gray-600 break-all">
             {typeof window !== 'undefined' && window.location.hostname === 'localhost'
               ? 'http://localhost:8000'
               : 'https://apiservices-backend.onrender.com'}{currentEndpoint.endpoint}
@@ -539,14 +539,14 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         </div>
 
         {/* Form Fields */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">
               Request Parameters
             </label>
             <button
               onClick={fillExample}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
             >
               Fill Example
             </button>

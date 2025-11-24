@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import apiClient from '../../lib/axios'
-import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap, Loader } from 'lucide-react'
+import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap, Loader, Menu } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 
 interface ApiKey {
@@ -75,6 +75,7 @@ export default function ClientDashboard() {
   const [selectedKeyForTesting, setSelectedKeyForTesting] = useState<string | null>(null)
   const [isLoadingKeys, setIsLoadingKeys] = useState(false)
   const [isLoadingServices, setIsLoadingServices] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -293,75 +294,75 @@ export default function ClientDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 text-black">
       <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-black">Client Dashboard</h1>
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-2 sm:px-4 py-4 flex items-center justify-between">
+          <h1 className="text-lg sm:text-2xl font-bold text-black">Client Dashboard</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
             {creditBalance && creditBalance.credits_remaining !== undefined && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
-                <Zap className="w-4 h-4 text-black" />
-                <span className="text-sm font-semibold text-black">
+              <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-blue-50 rounded-lg">
+                <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-black" />
+                <span className="text-xs sm:text-sm font-semibold text-black">
                   {(creditBalance.credits_remaining || 0).toFixed(2)} Credits
                 </span>
               </div>
             )}
-            <span className="text-black">{user?.email}</span>
+            <span className="text-xs sm:text-sm text-black truncate max-w-[100px] sm:max-w-none">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-black hover:text-black"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-black hover:text-black text-sm sm:text-base"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="flex border-b">
+        <div className="bg-white rounded-lg shadow mb-4 sm:mb-8">
+          <div className="flex border-b overflow-x-auto">
             <button
               onClick={() => setActiveTab('keys')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'keys'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <Key className="w-4 h-4 inline mr-2" />
+              <Key className="w-4 h-4 inline mr-1 sm:mr-2" />
               API Keys
             </button>
             <button
               onClick={() => setActiveTab('marketplace')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'marketplace'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <Package className="w-4 h-4 inline mr-2" />
+              <Package className="w-4 h-4 inline mr-1 sm:mr-2" />
               Marketplace
             </button>
             <button
               onClick={() => setActiveTab('subscriptions')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'subscriptions'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <ShoppingCart className="w-4 h-4 inline mr-2" />
+              <ShoppingCart className="w-4 h-4 inline mr-1 sm:mr-2" />
               Subscriptions
             </button>
             <button
               onClick={() => setActiveTab('credits')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'credits'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <CreditCard className="w-4 h-4 inline mr-2" />
+              <CreditCard className="w-4 h-4 inline mr-1 sm:mr-2" />
               Credits
             </button>
           </div>
@@ -370,14 +371,14 @@ export default function ClientDashboard() {
         {/* API Keys Tab */}
         {activeTab === 'keys' && (
           <div className="bg-white rounded-lg shadow mb-8">
-            <div className="p-6 border-b flex items-center justify-between">
+            <div className="p-4 sm:p-6 border-b flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Key className="w-6 h-6 text-black" />
                 <h2 className="text-xl font-bold text-black">API Keys</h2>
               </div>
             </div>
             
-            <div className="p-6 border-b bg-blue-50">
+            <div className="p-4 sm:p-6 border-b bg-blue-50">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
                   <Key className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -391,7 +392,7 @@ export default function ClientDashboard() {
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {isLoadingKeys ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader className="w-8 h-8 animate-spin text-blue-600" />
@@ -408,7 +409,7 @@ export default function ClientDashboard() {
               ) : (
                 <div className="space-y-4">
                   {apiKeys.map((key) => (
-                    <div key={key.id} className="border rounded-lg p-4">
+                    <div key={key.id} className="border rounded-lg p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex-1">
                           <h3 className="font-semibold text-black">{key.name}</h3>
@@ -526,7 +527,7 @@ export default function ClientDashboard() {
               })
               
               return (
-                <div key={service.id} className="bg-white rounded-lg shadow p-6">
+                <div key={service.id} className="bg-white rounded-lg shadow p-4 sm:p-6">
                   <h3 className="text-lg font-bold mb-2 text-black">{service.name}</h3>
                   <p className="text-sm text-black mb-4">{service.description}</p>
                   <div className="flex items-center justify-between mb-4">
@@ -561,11 +562,11 @@ export default function ClientDashboard() {
         {/* Subscriptions Tab */}
         {activeTab === 'subscriptions' && (
           <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-black">My Subscriptions</h2>
-              <p className="text-sm text-gray-600 mt-1">Your active service subscriptions</p>
+            <div className="p-4 sm:p-6 border-b">
+              <h2 className="text-lg sm:text-xl font-bold text-black">My Subscriptions</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">Your active service subscriptions</p>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {subscriptions.length === 0 ? (
                 <div className="text-center py-8">
                   <ShoppingCart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -577,14 +578,14 @@ export default function ClientDashboard() {
               ) : (
                 <div className="space-y-4">
                   {subscriptions.map((sub) => (
-                    <div key={sub.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div key={sub.id} className="border rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-black mb-1">{sub.service?.name || 'Service'}</h3>
                           {sub.service?.description && (
                             <p className="text-sm text-gray-600 mb-3">{sub.service.description}</p>
                           )}
-                          <div className="grid grid-cols-2 gap-4 mt-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                             <div>
                               <p className="text-xs text-gray-500 mb-1">Credits Allocated</p>
                               <p className="text-lg font-semibold text-black">{(sub.credits_allocated || 0).toFixed(2)}</p>
@@ -647,8 +648,8 @@ export default function ClientDashboard() {
               </div>
             </div>
             {creditBalance ? (
-              <div className="p-6">
-                <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   <div className="text-center">
                     <p className="text-sm text-black mb-2">Total Credits</p>
                     <p className="text-2xl font-bold text-black">{(creditBalance.total_credits || 0).toFixed(2)}</p>
@@ -662,14 +663,14 @@ export default function ClientDashboard() {
                     <p className="text-2xl font-bold text-black">{(creditBalance.credits_remaining || 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                   <p className="text-sm text-black">
                     <strong>Note:</strong> Credit pricing may vary per user. Contact admin for custom pricing options.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <p className="text-black text-center py-8">Loading credit balance...</p>
               </div>
             )}

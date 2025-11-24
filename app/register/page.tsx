@@ -100,12 +100,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4 py-8 sm:py-12">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-            <p className="text-gray-600">Start using our APIs today</p>
+        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
+            <p className="text-sm sm:text-base text-gray-600">Start using our APIs today</p>
           </div>
 
           {error && (
