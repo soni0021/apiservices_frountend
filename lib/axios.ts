@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const apiUrl = 'https://apiservices-backend.onrender.com'
+// Use localhost for development, production URL for deployed version
+const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://apiservices-backend.onrender.com'
 
 // Create axios instance
 const apiClient = axios.create({

@@ -56,7 +56,21 @@ export default function LoginPage() {
       
       if (err.response) {
         // Server responded with error
-        errorMessage = err.response.data?.detail || err.response.data?.message || errorMessage
+        const detail = err.response.data?.detail
+        const message = err.response.data?.message
+        
+        if (Array.isArray(detail)) {
+          // FastAPI validation errors - format them nicely
+          errorMessage = detail.map((error: any) => {
+            const field = error.loc?.join('.') || 'field'
+            const msg = error.msg || 'Invalid value'
+            return `${field}: ${msg}`
+          }).join(', ')
+        } else if (typeof detail === 'string') {
+          errorMessage = detail
+        } else if (message) {
+          errorMessage = message
+        }
       } else if (err.request) {
         // Request made but no response
         errorMessage = 'Unable to connect to server. Please check your internet connection and try again.'

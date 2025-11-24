@@ -130,6 +130,244 @@ const API_ENDPOINTS: ApiEndpoint[] = [
         example: '27ABCDE1234F1Z5'
       }
     ]
+  },
+  {
+    id: 'rc-to-engine-chassis',
+    name: 'RC to Engine and Chassis Number',
+    description: 'Get engine and chassis number from vehicle registration',
+    endpoint: '/api/v1/services/rc-to-engine-chassis',
+    method: 'POST',
+    fields: [
+      {
+        name: 'reg_no',
+        label: 'Registration Number',
+        type: 'text',
+        required: true,
+        placeholder: 'TR02AC1234',
+        example: 'TR02AC1234'
+      }
+    ]
+  },
+  {
+    id: 'basic-vehicle-info',
+    name: 'Basic Vehicle Info',
+    description: 'Get basic vehicle information',
+    endpoint: '/api/v1/services/basic-vehicle-info',
+    method: 'POST',
+    fields: [
+      {
+        name: 'reg_no',
+        label: 'Registration Number',
+        type: 'text',
+        required: true,
+        placeholder: 'TR02AC1234',
+        example: 'TR02AC1234'
+      }
+    ]
+  },
+  {
+    id: 'dl-to-challan',
+    name: 'DL to Challan API',
+    description: 'Get vehicle owner details from driving licence',
+    endpoint: '/api/v1/services/dl-to-challan',
+    method: 'POST',
+    fields: [
+      {
+        name: 'dl_no',
+        label: 'Driving Licence Number',
+        type: 'text',
+        required: true,
+        placeholder: 'GJ0520210012345',
+        example: 'GJ0520210012345'
+      }
+    ]
+  },
+  {
+    id: 'fuel-price-city',
+    name: 'Fuel Price by City',
+    description: 'Get fuel prices for a city',
+    endpoint: '/api/v1/services/fuel-price-city',
+    method: 'POST',
+    fields: [
+      {
+        name: 'city',
+        label: 'City',
+        type: 'text',
+        required: true,
+        placeholder: 'MUMBAI',
+        example: 'MUMBAI'
+      }
+    ]
+  },
+  {
+    id: 'fuel-price-state',
+    name: 'Fuel Price by State',
+    description: 'Get fuel prices for a state',
+    endpoint: '/api/v1/services/fuel-price-state',
+    method: 'POST',
+    fields: [
+      {
+        name: 'state',
+        label: 'State',
+        type: 'text',
+        required: true,
+        placeholder: 'MAHARASHTRA',
+        example: 'MAHARASHTRA'
+      }
+    ]
+  },
+  {
+    id: 'aadhaar-to-pan',
+    name: 'Aadhaar to PAN',
+    description: 'Get PAN number from Aadhaar number',
+    endpoint: '/api/v1/services/aadhaar-to-pan',
+    method: 'POST',
+    fields: [
+      {
+        name: 'aadhaar_number',
+        label: 'Aadhaar Number',
+        type: 'text',
+        required: true,
+        placeholder: '123456789012',
+        example: '123456789012'
+      }
+    ]
+  },
+  {
+    id: 'pan-to-aadhaar',
+    name: 'PAN to Aadhaar Verification',
+    description: 'Verify Aadhaar from PAN number',
+    endpoint: '/api/v1/services/pan-to-aadhaar',
+    method: 'POST',
+    fields: [
+      {
+        name: 'pan_number',
+        label: 'PAN Number',
+        type: 'text',
+        required: true,
+        placeholder: 'ABCDE1234F',
+        example: 'ABCDE1234F'
+      }
+    ]
+  },
+  {
+    id: 'address-verification',
+    name: 'Address Verification',
+    description: 'Verify address from Aadhaar number',
+    endpoint: '/api/v1/services/address-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'aadhaar_no',
+        label: 'Aadhaar Number',
+        type: 'text',
+        required: true,
+        placeholder: '123456789012',
+        example: '123456789012'
+      }
+    ]
+  },
+  {
+    id: 'gst-basic-details',
+    name: 'GST Basic Details',
+    description: 'Get basic GST details',
+    endpoint: '/api/v1/services/gst-basic-details',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'gst-address',
+    name: 'GST Address',
+    description: 'Get GST registered address',
+    endpoint: '/api/v1/services/gst-address',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'gst-aadhaar-status',
+    name: 'GST Aadhaar Status',
+    description: 'Check GST Aadhaar authentication status',
+    endpoint: '/api/v1/services/gst-aadhaar-status',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'msme-verification',
+    name: 'MSME Verification',
+    description: 'Verify MSME registration details',
+    endpoint: '/api/v1/services/msme-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'udyam_number',
+        label: 'Udyam Number',
+        type: 'text',
+        required: true,
+        placeholder: 'UDYAM-MH-01-0001234',
+        example: 'UDYAM-MH-01-0001234'
+      }
+    ]
+  },
+  {
+    id: 'phone-to-udyam',
+    name: 'Udyam API',
+    description: 'Get Udyam details from phone number',
+    endpoint: '/api/v1/services/phone-to-udyam',
+    method: 'POST',
+    fields: [
+      {
+        name: 'phone_number',
+        label: 'Phone Number',
+        type: 'text',
+        required: true,
+        placeholder: '9876543210',
+        example: '9876543210'
+      }
+    ]
+  },
+  {
+    id: 'voter-id-verification',
+    name: 'Voter ID Verification',
+    description: 'Verify voter ID details',
+    endpoint: '/api/v1/services/voter-id-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'epic_number',
+        label: 'EPIC Number',
+        type: 'text',
+        required: true,
+        placeholder: 'ABC1234567',
+        example: 'ABC1234567'
+      }
+    ]
   }
 ]
 
@@ -169,7 +407,9 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
     setResponse(null)
 
     try {
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const url = `${apiUrl}${currentEndpoint.endpoint}`
 
       const payload: Record<string, any> = {}
@@ -179,14 +419,18 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         }
       })
 
+      const startTime = performance.now()
       const response = await axios.post(url, payload, {
         headers: {
           'X-API-Key': apiKey,
           'Content-Type': 'application/json'
         }
       })
+      const endTime = performance.now()
+      const latency = Math.round(endTime - startTime)
 
-      setResponse(response.data)
+      // Add latency info to response for display
+      setResponse({ ...response.data, __latency_ms: latency })
     } catch (err: any) {
       setError(
         err.response?.data?.detail || 
@@ -288,7 +532,9 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
             </span>
           </div>
           <code className="text-xs text-gray-600">
-            https://apiservices-backend.onrender.com{currentEndpoint.endpoint}
+            {typeof window !== 'undefined' && window.location.hostname === 'localhost'
+              ? 'http://localhost:8000'
+              : 'https://apiservices-backend.onrender.com'}{currentEndpoint.endpoint}
           </code>
         </div>
 
@@ -367,7 +613,14 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         {response && (
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-50 px-4 py-2 flex items-center justify-between border-b">
-              <p className="text-sm font-semibold text-gray-900">Response</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-semibold text-gray-900">Response</p>
+                {response.__latency_ms && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
+                    {response.__latency_ms}ms latency
+                  </span>
+                )}
+              </div>
               <button
                 onClick={copyResponse}
                 className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900"

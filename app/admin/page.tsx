@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap } from 'lucide-react'
+import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 
 interface User {
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [testApiKey, setTestApiKey] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'marketplace' | 'subscriptions' | 'transactions' | 'testing'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'marketplace' | 'subscriptions' | 'transactions' | 'credits' | 'api-keys' | 'testing'>('overview')
   const [industries, setIndustries] = useState<Industry[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [services, setServices] = useState<Service[]>([])
@@ -79,6 +79,47 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [subscriptionCredits, setSubscriptionCredits] = useState('100')
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [serviceSearchDropdownTerm, setServiceSearchDropdownTerm] = useState('')
+  
+  // Loading states for different tabs
+  const [isLoadingMarketplace, setIsLoadingMarketplace] = useState(false)
+  const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false)
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
+  const [isLoadingCredits, setIsLoadingCredits] = useState(false)
+  
+  // Credit allocation form state
+  const [creditAllocationUserId, setCreditAllocationUserId] = useState('')
+  const [creditAllocationSearch, setCreditAllocationSearch] = useState('')
+  const [creditsAmount, setCreditsAmount] = useState('')
+  const [amountPaid, setAmountPaid] = useState('')
+  const [allocationNotes, setAllocationNotes] = useState('')
+  const [isAllocatingCredits, setIsAllocatingCredits] = useState(false)
+  
+  // Pricing form state
+  const [pricingUserId, setPricingUserId] = useState('')
+  const [pricePerCredit, setPricePerCredit] = useState('')
+  const [isUpdatingPricing, setIsUpdatingPricing] = useState(false)
+  
+  // User credit info state
+  const [userCreditInfo, setUserCreditInfo] = useState<Record<string, any>>({})
+  const [isLoadingCreditInfo, setIsLoadingCreditInfo] = useState(false)
+  
+  // Transactions state
+  const [transactions, setTransactions] = useState<any[]>([])
+  
+  // API Key Generation state
+  const [showGenerateApiKey, setShowGenerateApiKey] = useState(false)
+  const [apiKeyUserId, setApiKeyUserId] = useState('')
+  const [apiKeyUserSearch, setApiKeyUserSearch] = useState('')
+  const [apiKeyName, setApiKeyName] = useState('')
+  const [apiKeyServiceIds, setApiKeyServiceIds] = useState<string[]>([])
+  const [apiKeyWhitelistUrls, setApiKeyWhitelistUrls] = useState<string[]>([''])
+  const [apiKeyAllServices, setApiKeyAllServices] = useState(false)
+  const [isGeneratingApiKey, setIsGeneratingApiKey] = useState(false)
+  const [generatedApiKey, setGeneratedApiKey] = useState<any>(null)
+  const [userApiKeys, setUserApiKeys] = useState<Record<string, any[]>>({})
+  const [isLoadingUserApiKeys, setIsLoadingUserApiKeys] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -101,7 +142,9 @@ export default function AdminDashboard() {
   }, [])
 
   const setupWebSocket = (token: string) => {
-    const apiUrl = 'https://apiservices-backend.onrender.com'
+    const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:8000'
+      : 'https://apiservices-backend.onrender.com'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     
     try {
@@ -148,7 +191,9 @@ export default function AdminDashboard() {
 
   const fetchData = async (token: string) => {
     try {
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [usersRes, analyticsRes] = await Promise.all([
@@ -167,7 +212,9 @@ export default function AdminDashboard() {
 
   const fetchRealtimeStats = async (token: string) => {
     try {
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/realtime-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -178,9 +225,12 @@ export default function AdminDashboard() {
   }
 
   const fetchMarketplace = async () => {
+    setIsLoadingMarketplace(true)
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [industriesRes, categoriesRes, servicesRes] = await Promise.all([
@@ -194,19 +244,223 @@ export default function AdminDashboard() {
       setServices(servicesRes.data)
     } catch (err) {
       console.error('Failed to fetch marketplace data:', err)
+    } finally {
+      setIsLoadingMarketplace(false)
     }
   }
 
   const fetchSubscriptions = async () => {
+    setIsLoadingSubscriptions(true)
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/subscriptions`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setSubscriptions(response.data)
     } catch (err) {
       console.error('Failed to fetch subscriptions:', err)
+    } finally {
+      setIsLoadingSubscriptions(false)
+    }
+  }
+  
+  const fetchTransactions = async () => {
+    setIsLoadingTransactions(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const response = await axios.get(`${apiUrl}/api/v1/admin/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setTransactions(response.data)
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err)
+      setTransactions([])
+    } finally {
+      setIsLoadingTransactions(false)
+    }
+  }
+  
+  const allocateCredits = async () => {
+    if (!creditAllocationUserId || !creditsAmount) {
+      alert('Please select a user and enter credits amount')
+      return
+    }
+    
+    setIsAllocatingCredits(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.post(
+        `${apiUrl}/api/v1/admin/users/${creditAllocationUserId}/credits`,
+        {
+          credits_amount: parseFloat(creditsAmount),
+          amount_paid: amountPaid ? parseFloat(amountPaid) : null,
+          notes: allocationNotes || null
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`Successfully allocated ${creditsAmount} credits!`)
+      // Reset form
+      setCreditAllocationUserId('')
+      setCreditsAmount('')
+      setAmountPaid('')
+      setAllocationNotes('')
+      setCreditAllocationSearch('')
+      
+      // Refresh user data
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+        fetchUserCreditInfo()
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to allocate credits')
+    } finally {
+      setIsAllocatingCredits(false)
+    }
+  }
+  
+  const updateUserPricing = async () => {
+    if (!pricingUserId || !pricePerCredit) {
+      alert('Please select a user and enter price per credit')
+      return
+    }
+    
+    setIsUpdatingPricing(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.put(
+        `${apiUrl}/api/v1/admin/users/${pricingUserId}/pricing`,
+        {
+          price_per_credit: parseFloat(pricePerCredit)
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`Successfully updated pricing to ₹${pricePerCredit} per credit!`)
+      // Reset form
+      setPricingUserId('')
+      setPricePerCredit('')
+      
+      // Refresh user data
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+        fetchUserCreditInfo()
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update pricing')
+    } finally {
+      setIsUpdatingPricing(false)
+    }
+  }
+  
+  const fetchUserCreditInfo = async () => {
+    setIsLoadingCreditInfo(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      // Fetch credit info for all client users
+      const clientUsers = users.filter(u => u.role === 'client')
+      const creditInfoPromises = clientUsers.map(user =>
+        axios.get(`${apiUrl}/api/v1/admin/users/${user.id}/credits`, { headers })
+          .then(res => ({ userId: user.id, data: res.data }))
+          .catch(() => ({ userId: user.id, data: null }))
+      )
+      
+      const results = await Promise.all(creditInfoPromises)
+      const infoMap: Record<string, any> = {}
+      results.forEach(({ userId, data }) => {
+        if (data) infoMap[userId] = data
+      })
+      
+      setUserCreditInfo(infoMap)
+    } catch (err) {
+      console.error('Failed to fetch credit info:', err)
+    } finally {
+      setIsLoadingCreditInfo(false)
+    }
+  }
+  
+  const fetchUserApiKeys = async (userId: string) => {
+    setIsLoadingUserApiKeys(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const response = await axios.get(`${apiUrl}/api/v1/admin/users/${userId}/api-keys`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setUserApiKeys({ ...userApiKeys, [userId]: response.data })
+    } catch (err) {
+      console.error('Failed to fetch user API keys:', err)
+      setUserApiKeys({ ...userApiKeys, [userId]: [] })
+    } finally {
+      setIsLoadingUserApiKeys(false)
+    }
+  }
+  
+  const handleGenerateApiKey = async () => {
+    if (!apiKeyUserId || !apiKeyName.trim() || (!apiKeyAllServices && apiKeyServiceIds.length === 0)) {
+      alert('Please fill all required fields')
+      return
+    }
+    
+    setIsGeneratingApiKey(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const whitelistUrls = apiKeyWhitelistUrls.filter(url => url.trim() !== '')
+      
+      const response = await axios.post(
+        `${apiUrl}/api/v1/admin/api-keys/generate`,
+        {
+          user_id: apiKeyUserId,
+          service_ids: apiKeyAllServices ? ['*'] : apiKeyServiceIds,
+          name: apiKeyName,
+          whitelist_urls: whitelistUrls.length > 0 ? whitelistUrls : null
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      setGeneratedApiKey(response.data)
+      
+      // Refresh user's API keys list
+      await fetchUserApiKeys(apiKeyUserId)
+      
+      // Reset form (but keep user selected)
+      setApiKeyName('')
+      setApiKeyServiceIds([])
+      setApiKeyWhitelistUrls([''])
+      setApiKeyAllServices(false)
+      
+      alert('API key generated successfully! Please save it now - it will only be shown once.')
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to generate API key')
+    } finally {
+      setIsGeneratingApiKey(false)
     }
   }
 
@@ -218,7 +472,9 @@ export default function AdminDashboard() {
 
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = 'https://apiservices-backend.onrender.com'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       await axios.post(
         `${apiUrl}/api/v1/admin/subscriptions`,
         {
@@ -243,13 +499,18 @@ export default function AdminDashboard() {
     if (activeTab === 'overview') {
       const token = localStorage.getItem('access_token')
       if (token) fetchRealtimeStats(token)
-    } else     if (activeTab === 'marketplace') {
+    } else if (activeTab === 'marketplace') {
       fetchMarketplace()
-    }
-    if (activeTab === 'subscriptions') {
+    } else if (activeTab === 'subscriptions') {
       fetchSubscriptions()
+    } else if (activeTab === 'transactions') {
+      fetchTransactions()
+    } else if (activeTab === 'credits') {
+      fetchUserCreditInfo()
+    } else if (activeTab === 'api-keys') {
+      if (services.length === 0) fetchMarketplace()
     }
-  }, [activeTab])
+  }, [activeTab, users])
 
   const handleLogout = () => {
     if (wsRef.current) {
@@ -353,6 +614,28 @@ export default function AdminDashboard() {
             >
               <CreditCard className="w-4 h-4 inline mr-2" />
               Transactions
+            </button>
+            <button
+              onClick={() => setActiveTab('credits')}
+              className={`px-6 py-3 font-medium whitespace-nowrap ${
+                activeTab === 'credits'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Zap className="w-4 h-4 inline mr-2" />
+              Credit Management
+            </button>
+            <button
+              onClick={() => setActiveTab('api-keys')}
+              className={`px-6 py-3 font-medium whitespace-nowrap ${
+                activeTab === 'api-keys'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Key className="w-4 h-4 inline mr-2" />
+              API Keys
             </button>
             <button
               onClick={() => setActiveTab('testing')}
@@ -514,6 +797,15 @@ export default function AdminDashboard() {
         {/* Marketplace Tab */}
         {activeTab === 'marketplace' && (
           <div className="space-y-6">
+            {isLoadingMarketplace ? (
+              <div className="bg-white rounded-lg shadow p-12">
+                <div className="flex items-center justify-center">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Loading marketplace data...</span>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Industries */}
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b flex items-center justify-between">
@@ -577,6 +869,8 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -595,18 +889,25 @@ export default function AdminDashboard() {
                 </button>
               </div>
               <div className="p-6">
-                {subscriptions.length === 0 ? (
+                {isLoadingSubscriptions ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-3 text-gray-600">Loading subscriptions...</span>
+                  </div>
+                ) : subscriptions.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No subscriptions found</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client Status</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service Status</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remaining</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                         </tr>
                       </thead>
@@ -614,10 +915,21 @@ export default function AdminDashboard() {
                         {subscriptions.map((sub) => (
                           <tr key={sub.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{sub.user_email || 'N/A'}</div>
+                              <div className="text-sm font-medium text-gray-900">{sub.user_name || 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{sub.user_email || 'N/A'}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{sub.service_name || 'N/A'}</div>
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                sub.user_status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {sub.user_status || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{sub.service_name || 'N/A'}</div>
+                              {sub.service_slug && (
+                                <div className="text-xs text-gray-500">{sub.service_slug}</div>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -627,10 +939,13 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {sub.credits_allocated}
+                              {sub.credits_allocated?.toFixed(2) || '0.00'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {sub.credits_remaining}
+                              {sub.credits_remaining?.toFixed(2) || '0.00'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {sub.expires_at ? new Date(sub.expires_at).toLocaleDateString() : 'No expiry'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(sub.created_at).toLocaleDateString()}
@@ -654,26 +969,55 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">User</label>
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-t-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
                   <select
                     value={selectedUserId}
                     onChange={(e) => setSelectedUserId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-b-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    size={6}
                   >
                     <option value="">Select a user</option>
-                    {users.filter(u => u.role === 'client').map((u) => (
+                    {users
+                      .filter(u => u.role === 'client')
+                      .filter(u => {
+                        if (!userSearchTerm) return true
+                        const searchLower = userSearchTerm.toLowerCase()
+                        return u.email.toLowerCase().includes(searchLower) || 
+                               u.full_name?.toLowerCase().includes(searchLower)
+                      })
+                      .map((u) => (
                       <option key={u.id} value={u.id}>{u.email} ({u.full_name})</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                  <input
+                    type="text"
+                    placeholder="Search services..."
+                    value={serviceSearchDropdownTerm}
+                    onChange={(e) => setServiceSearchDropdownTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-t-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
                   <select
                     value={selectedServiceId}
                     onChange={(e) => setSelectedServiceId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-b-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    size={5}
                   >
                     <option value="">Select a service</option>
-                    {services.map((s) => (
+                    {services
+                      .filter(s => {
+                        if (!serviceSearchDropdownTerm) return true
+                        return s.name.toLowerCase().includes(serviceSearchDropdownTerm.toLowerCase())
+                      })
+                      .map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
@@ -721,7 +1065,525 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-bold">All Transactions</h2>
             </div>
             <div className="p-6">
-              <p className="text-gray-500">Transaction history view - Fetch from API</p>
+              {isLoadingTransactions ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Loading transactions...</span>
+                </div>
+              ) : transactions.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No transactions found</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount Paid</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {transactions.map((txn) => (
+                        <tr key={txn.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{txn.user_email || 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₹{txn.amount_paid?.toFixed(2) || '0.00'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {txn.credits_purchased?.toFixed(2) || '0.00'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              txn.payment_status === 'completed' ? 'bg-green-100 text-green-800' : 
+                              txn.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {txn.payment_status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(txn.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Credit Management Tab */}
+        {activeTab === 'credits' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-bold">Allocate Credits to User</h2>
+                <p className="text-sm text-gray-600 mt-1">Add credits to user account with flexible pricing</p>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={creditAllocationSearch}
+                      onChange={(e) => setCreditAllocationSearch(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    />
+                    <div className="relative">
+                      <select 
+                        value={creditAllocationUserId}
+                        onChange={(e) => {
+                          setCreditAllocationUserId(e.target.value)
+                        }}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 appearance-none bg-white cursor-pointer pr-8"
+                      >
+                        <option value="">Select a user...</option>
+                        {users
+                          .filter(u => u.role === 'client')
+                          .filter(u => {
+                            if (!creditAllocationSearch) return true
+                            const searchLower = creditAllocationSearch.toLowerCase()
+                            return u.email.toLowerCase().includes(searchLower) || 
+                                   u.full_name?.toLowerCase().includes(searchLower)
+                          })
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>{u.email} - {u.full_name}</option>
+                          ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Credits Amount</label>
+                      <input
+                        type="number"
+                        placeholder="100"
+                        min="1"
+                        step="1"
+                        value={creditsAmount}
+                        onChange={(e) => setCreditsAmount(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid (₹)</label>
+                      <input
+                        type="number"
+                        placeholder="500"
+                        min="0"
+                        step="1"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                    <textarea
+                      placeholder="Enter any notes about this credit allocation..."
+                      rows={3}
+                      value={allocationNotes}
+                      onChange={(e) => setAllocationNotes(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                  </div>
+                  <button 
+                    onClick={allocateCredits}
+                    disabled={isAllocatingCredits || !creditAllocationUserId || !creditsAmount}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isAllocatingCredits ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Allocating...
+                      </>
+                    ) : (
+                      'Allocate Credits'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-bold">Set User-Specific Pricing</h2>
+                <p className="text-sm text-gray-600 mt-1">Customize per-credit pricing for individual users (Global default: ₹5 per credit)</p>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <div className="relative">
+                      <select 
+                        value={pricingUserId}
+                        onChange={(e) => {
+                          e.preventDefault()
+                          setPricingUserId(e.target.value)
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 appearance-none bg-white cursor-pointer"
+                      >
+                        <option value="">Select a user...</option>
+                        {users.filter(u => u.role === 'client').map((u) => (
+                          <option key={u.id} value={u.id}>{u.email} - {u.full_name}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Price Per Credit (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="5.00"
+                      min="0.01"
+                      step="0.01"
+                      value={pricePerCredit}
+                      onChange={(e) => setPricePerCredit(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Default global pricing: ₹5.00 per credit</p>
+                  </div>
+                  <button 
+                    onClick={updateUserPricing}
+                    disabled={isUpdatingPricing || !pricingUserId || !pricePerCredit}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isUpdatingPricing ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update User Pricing'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-bold">User Credit Information</h2>
+              </div>
+              <div className="p-6">
+                {isLoadingCreditInfo ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-3 text-gray-600">Loading credit information...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {users.filter(u => u.role === 'client').map((u) => {
+                      const creditInfo = userCreditInfo[u.id]
+                      return (
+                        <div key={u.id} className="border rounded-lg p-4">
+                          <h3 className="font-semibold text-gray-900">{u.full_name}</h3>
+                          <p className="text-sm text-gray-600">{u.email}</p>
+                          <div className="mt-3 space-y-1">
+                            <p className="text-xs text-gray-500">
+                              Total Credits: <span className="font-semibold">{creditInfo?.total_credits?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Used: <span className="font-semibold">{creditInfo?.credits_used?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Remaining: <span className="font-semibold">{creditInfo?.credits_remaining?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Price/Credit: <span className="font-semibold">₹{creditInfo?.price_per_credit?.toFixed(2) || '5.00'}</span>
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* API Key Management Tab */}
+        {activeTab === 'api-keys' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b flex items-center justify-between">
+                <h2 className="text-xl font-bold">Generate API Key for User</h2>
+                <button
+                  onClick={() => {
+                    setShowGenerateApiKey(true)
+                    if (services.length === 0) fetchMarketplace()
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Generate API Key
+                </button>
+              </div>
+              
+              {showGenerateApiKey && (
+                <div className="p-6 border-b bg-gray-50">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                      <input
+                        type="text"
+                        placeholder="Search users..."
+                        value={apiKeyUserSearch}
+                        onChange={(e) => setApiKeyUserSearch(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                      />
+                      <div className="relative">
+                        <select
+                          value={apiKeyUserId}
+                          onChange={(e) => {
+                            setApiKeyUserId(e.target.value)
+                            if (e.target.value) {
+                              fetchUserApiKeys(e.target.value)
+                            }
+                          }}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 appearance-none bg-white cursor-pointer pr-8"
+                        >
+                          <option value="">Select a user...</option>
+                          {users
+                            .filter(u => u.role === 'client')
+                            .filter(u => {
+                              if (!apiKeyUserSearch) return true
+                              const searchLower = apiKeyUserSearch.toLowerCase()
+                              return u.email.toLowerCase().includes(searchLower) || 
+                                     u.full_name?.toLowerCase().includes(searchLower)
+                            })
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>{u.email} - {u.full_name}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">API Key Name</label>
+                      <input
+                        type="text"
+                        value={apiKeyName}
+                        onChange={(e) => setApiKeyName(e.target.value)}
+                        placeholder="e.g., Production Key, Test Key"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={apiKeyAllServices}
+                          onChange={(e) => {
+                            setApiKeyAllServices(e.target.checked)
+                            if (e.target.checked) {
+                              setApiKeyServiceIds(['*'])
+                            } else {
+                              setApiKeyServiceIds([])
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Grant access to ALL services</span>
+                      </label>
+                    </div>
+                    
+                    {!apiKeyAllServices && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Services</label>
+                        <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                          {services.map((svc) => (
+                            <label key={svc.id} className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                checked={apiKeyServiceIds.includes(svc.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setApiKeyServiceIds([...apiKeyServiceIds, svc.id])
+                                  } else {
+                                    setApiKeyServiceIds(apiKeyServiceIds.filter(id => id !== svc.id))
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-sm text-gray-900">{svc.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Whitelist URLs (Security) - Optional
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Only allow API requests from these URLs. Leave empty to allow all origins.
+                      </p>
+                      {apiKeyWhitelistUrls.map((url, index) => (
+                        <div key={index} className="flex gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={url}
+                            onChange={(e) => {
+                              const newUrls = [...apiKeyWhitelistUrls]
+                              newUrls[index] = e.target.value
+                              setApiKeyWhitelistUrls(newUrls)
+                            }}
+                            placeholder="https://example.com"
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-900"
+                          />
+                          {apiKeyWhitelistUrls.length > 1 && (
+                            <button
+                              onClick={() => {
+                                setApiKeyWhitelistUrls(apiKeyWhitelistUrls.filter((_, i) => i !== index))
+                              }}
+                              className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setApiKeyWhitelistUrls([...apiKeyWhitelistUrls, ''])}
+                        className="text-sm text-blue-600 hover:text-blue-700"
+                      >
+                        + Add URL
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleGenerateApiKey}
+                        disabled={!apiKeyUserId || !apiKeyName.trim() || (!apiKeyAllServices && apiKeyServiceIds.length === 0) || isGeneratingApiKey}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isGeneratingApiKey ? (
+                          <>
+                            <Loader className="w-4 h-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          'Generate API Key'
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowGenerateApiKey(false)
+                          setApiKeyUserId('')
+                          setApiKeyName('')
+                          setApiKeyServiceIds([])
+                          setApiKeyWhitelistUrls([''])
+                          setApiKeyAllServices(false)
+                          setApiKeyUserSearch('')
+                          setGeneratedApiKey(null)
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {generatedApiKey && (
+                <div className="p-6 border-b bg-green-50">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Check className="w-5 h-5 text-green-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-green-900 mb-2">API Key Generated Successfully!</p>
+                      <p className="text-sm text-green-700 mb-3">
+                        ⚠️ <strong>Save this key now</strong> - it will only be shown once!
+                      </p>
+                      <div className="bg-white border border-green-200 rounded-lg p-4 mb-3">
+                        <code className="text-sm text-gray-900 break-all">{generatedApiKey.full_key}</code>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedApiKey.full_key)
+                          alert('API key copied to clipboard!')
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Copy API Key
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {apiKeyUserId && (
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">User's API Keys</h3>
+                  {isLoadingUserApiKeys ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader className="w-6 h-6 animate-spin text-blue-600" />
+                      <span className="ml-3 text-gray-600">Loading API keys...</span>
+                    </div>
+                  ) : userApiKeys[apiKeyUserId]?.length > 0 ? (
+                    <div className="space-y-3">
+                      {userApiKeys[apiKeyUserId].map((key: any) => (
+                        <div key={key.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="font-semibold text-gray-900">{key.name}</h4>
+                              <p className="text-sm text-gray-600">{key.key_prefix}...</p>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded ${
+                              key.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {key.status}
+                            </span>
+                          </div>
+                          {key.allowed_services && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Services: {key.allowed_services.includes('*') ? 'All Services' : key.allowed_services.join(', ')}
+                            </p>
+                          )}
+                          {key.whitelist_urls && key.whitelist_urls.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Whitelisted: {key.whitelist_urls.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No API keys for this user yet</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
