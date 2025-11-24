@@ -49,6 +49,8 @@ interface Subscription {
   credits_allocated: number
   credits_remaining: number
   expires_at: string | null
+  created_at?: string
+  started_at?: string
 }
 
 interface CreditBalance {
@@ -613,7 +615,7 @@ export default function ClientDashboard() {
                           <div className="mt-4 pt-4 border-t">
                             <p className="text-xs text-gray-500 mb-1">Started</p>
                             <p className="text-sm text-black">
-                              {sub.started_at ? new Date(sub.started_at).toLocaleDateString() : 'N/A'}
+                              {(sub.started_at || sub.created_at) ? new Date(sub.started_at || sub.created_at!).toLocaleDateString() : 'N/A'}
                             </p>
                           </div>
                         </div>
