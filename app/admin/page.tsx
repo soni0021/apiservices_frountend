@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap } from 'lucide-react'
+import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check, Menu, X } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
+import SearchableSelect from '../components/SearchableSelect'
+import SearchableMultiSelect from '../components/SearchableMultiSelect'
 
 interface User {
   id: string
@@ -70,7 +72,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [testApiKey, setTestApiKey] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'marketplace' | 'subscriptions' | 'transactions' | 'testing'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'marketplace' | 'subscriptions' | 'transactions' | 'credits' | 'api-keys' | 'testing'>('overview')
   const [industries, setIndustries] = useState<Industry[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [services, setServices] = useState<Service[]>([])
@@ -79,6 +81,41 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [subscriptionCredits, setSubscriptionCredits] = useState('100')
+  const [serviceSearchDropdownTerm, setServiceSearchDropdownTerm] = useState('')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  
+  // Loading states for different tabs
+  const [isLoadingMarketplace, setIsLoadingMarketplace] = useState(false)
+  const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false)
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
+  const [isLoadingCredits, setIsLoadingCredits] = useState(false)
+  
+  // Credit allocation form state
+  const [creditAllocationUserId, setCreditAllocationUserId] = useState('')
+  const [creditAllocationSearch, setCreditAllocationSearch] = useState('')
+  const [creditsAmount, setCreditsAmount] = useState('')
+  const [amountPaid, setAmountPaid] = useState('')
+  const [allocationNotes, setAllocationNotes] = useState('')
+  const [isAllocatingCredits, setIsAllocatingCredits] = useState(false)
+  
+  // Pricing form state
+  const [pricingUserId, setPricingUserId] = useState('')
+  const [pricePerCredit, setPricePerCredit] = useState('')
+  const [isUpdatingPricing, setIsUpdatingPricing] = useState(false)
+  
+  // User credit info state
+  const [userCreditInfo, setUserCreditInfo] = useState<Record<string, any>>({})
+  const [isLoadingCreditInfo, setIsLoadingCreditInfo] = useState(false)
+  
+  // Transactions state
+  const [transactions, setTransactions] = useState<any[]>([])
+  
+  // Service Access Management state
+  const [selectedUserForAccess, setSelectedUserForAccess] = useState('')
+  const [userServiceAccess, setUserServiceAccess] = useState<Record<string, any[]>>({})
+  const [isLoadingServiceAccess, setIsLoadingServiceAccess] = useState(false)
+  const [isGrantingAccess, setIsGrantingAccess] = useState(false)
+  const [selectedServicesForGrant, setSelectedServicesForGrant] = useState<string[]>([])
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -101,7 +138,9 @@ export default function AdminDashboard() {
   }, [])
 
   const setupWebSocket = (token: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:8000'
+      : 'https://apiservices-backend.onrender.com'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     
     try {
@@ -148,7 +187,9 @@ export default function AdminDashboard() {
 
   const fetchData = async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [usersRes, analyticsRes] = await Promise.all([
@@ -167,7 +208,9 @@ export default function AdminDashboard() {
 
   const fetchRealtimeStats = async (token: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/realtime-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -178,9 +221,12 @@ export default function AdminDashboard() {
   }
 
   const fetchMarketplace = async () => {
+    setIsLoadingMarketplace(true)
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const headers = { Authorization: `Bearer ${token}` }
 
       const [industriesRes, categoriesRes, servicesRes] = await Promise.all([
@@ -194,19 +240,255 @@ export default function AdminDashboard() {
       setServices(servicesRes.data)
     } catch (err) {
       console.error('Failed to fetch marketplace data:', err)
+    } finally {
+      setIsLoadingMarketplace(false)
     }
   }
 
   const fetchSubscriptions = async () => {
+    setIsLoadingSubscriptions(true)
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const response = await axios.get(`${apiUrl}/api/v1/admin/subscriptions`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setSubscriptions(response.data)
     } catch (err) {
       console.error('Failed to fetch subscriptions:', err)
+    } finally {
+      setIsLoadingSubscriptions(false)
+    }
+  }
+  
+  const fetchTransactions = async () => {
+    setIsLoadingTransactions(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const response = await axios.get(`${apiUrl}/api/v1/admin/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setTransactions(response.data)
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err)
+      setTransactions([])
+    } finally {
+      setIsLoadingTransactions(false)
+    }
+  }
+  
+  const allocateCredits = async () => {
+    if (!creditAllocationUserId || !creditsAmount) {
+      alert('Please select a user and enter credits amount')
+      return
+    }
+    
+    setIsAllocatingCredits(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.post(
+        `${apiUrl}/api/v1/admin/users/${creditAllocationUserId}/credits`,
+        {
+          credits_amount: parseFloat(creditsAmount),
+          amount_paid: amountPaid ? parseFloat(amountPaid) : null,
+          notes: allocationNotes || null
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`Successfully allocated ${creditsAmount} credits!`)
+      // Reset form
+      setCreditAllocationUserId('')
+      setCreditsAmount('')
+      setAmountPaid('')
+      setAllocationNotes('')
+      setCreditAllocationSearch('')
+      
+      // Refresh user data
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+        fetchUserCreditInfo()
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to allocate credits')
+    } finally {
+      setIsAllocatingCredits(false)
+    }
+  }
+  
+  const updateUserPricing = async () => {
+    if (!pricingUserId || !pricePerCredit) {
+      alert('Please select a user and enter price per credit')
+      return
+    }
+    
+    setIsUpdatingPricing(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.put(
+        `${apiUrl}/api/v1/admin/users/${pricingUserId}/pricing`,
+        {
+          price_per_credit: parseFloat(pricePerCredit)
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`Successfully updated pricing to ₹${pricePerCredit} per credit!`)
+      // Reset form
+      setPricingUserId('')
+      setPricePerCredit('')
+      
+      // Refresh user data
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+        fetchUserCreditInfo()
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update pricing')
+    } finally {
+      setIsUpdatingPricing(false)
+    }
+  }
+  
+  const fetchUserCreditInfo = async () => {
+    setIsLoadingCreditInfo(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      // Fetch credit info for all client users
+      const clientUsers = users.filter(u => u.role === 'client')
+      const creditInfoPromises = clientUsers.map(user =>
+        axios.get(`${apiUrl}/api/v1/admin/users/${user.id}/credits`, { headers })
+          .then(res => ({ userId: user.id, data: res.data }))
+          .catch(() => ({ userId: user.id, data: null }))
+      )
+      
+      const results = await Promise.all(creditInfoPromises)
+      const infoMap: Record<string, any> = {}
+      results.forEach(({ userId, data }) => {
+        if (data) infoMap[userId] = data
+      })
+      
+      setUserCreditInfo(infoMap)
+    } catch (err) {
+      console.error('Failed to fetch credit info:', err)
+    } finally {
+      setIsLoadingCreditInfo(false)
+    }
+  }
+  
+  const fetchUserServiceAccess = async (userId: string) => {
+    setIsLoadingServiceAccess(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const response = await axios.get(`${apiUrl}/api/v1/admin/users/${userId}/service-access`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setUserServiceAccess({ ...userServiceAccess, [userId]: response.data })
+    } catch (err) {
+      console.error('Failed to fetch user service access:', err)
+      setUserServiceAccess({ ...userServiceAccess, [userId]: [] })
+    } finally {
+      setIsLoadingServiceAccess(false)
+    }
+  }
+  
+  const handleGrantServiceAccess = async () => {
+    if (!selectedUserForAccess || selectedServicesForGrant.length === 0) {
+      alert('Please select a user and at least one service')
+      return
+    }
+    
+    setIsGrantingAccess(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      // Grant access to all selected services
+      const grantPromises = selectedServicesForGrant.map(serviceId =>
+        axios.post(
+          `${apiUrl}/api/v1/admin/users/${selectedUserForAccess}/service-access`,
+          { service_id: serviceId },
+          { headers }
+        ).catch(err => {
+          // Return error info instead of throwing
+          return { error: err.response?.data?.detail || 'Failed to grant access', serviceId } as any
+        })
+      )
+      
+      const results = await Promise.all(grantPromises)
+      
+      // Check for errors
+      const errors = results.filter((r: any) => r.error)
+      const successes = results.filter((r: any) => !r.error)
+      
+      // Refresh service access list
+      await fetchUserServiceAccess(selectedUserForAccess)
+      
+      // Reset service selection
+      setSelectedServicesForGrant([])
+      
+      if (errors.length > 0) {
+        const errorMessages = errors.map(e => `Service ${e.serviceId}: ${e.error}`).join('\n')
+        alert(`Granted access to ${successes.length} service(s). Errors:\n${errorMessages}`)
+      } else {
+        alert(`Successfully granted access to ${successes.length} service(s)!`)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to grant service access')
+    } finally {
+      setIsGrantingAccess(false)
+    }
+  }
+  
+  const handleRevokeServiceAccess = async (userId: string, serviceId: string) => {
+    if (!confirm('Are you sure you want to revoke this service access?')) return
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.delete(
+        `${apiUrl}/api/v1/admin/users/${userId}/service-access/${serviceId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+      
+      // Refresh service access list
+      await fetchUserServiceAccess(userId)
+      
+      alert('Service access revoked successfully!')
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to revoke service access')
     }
   }
 
@@ -218,7 +500,9 @@ export default function AdminDashboard() {
 
     try {
       const token = localStorage.getItem('access_token')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       await axios.post(
         `${apiUrl}/api/v1/admin/subscriptions`,
         {
@@ -243,13 +527,27 @@ export default function AdminDashboard() {
     if (activeTab === 'overview') {
       const token = localStorage.getItem('access_token')
       if (token) fetchRealtimeStats(token)
-    } else     if (activeTab === 'marketplace') {
+    } else if (activeTab === 'marketplace') {
       fetchMarketplace()
-    }
-    if (activeTab === 'subscriptions') {
+    } else if (activeTab === 'subscriptions') {
       fetchSubscriptions()
+    } else if (activeTab === 'transactions') {
+      fetchTransactions()
+    } else if (activeTab === 'credits') {
+      fetchUserCreditInfo()
+    } else if (activeTab === 'api-keys') {
+      // Always fetch services and users when API Keys tab is active
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        // Always fetch services for this tab
+        fetchMarketplace()
+        // Ensure users are loaded
+        if (users.length === 0) {
+          fetchData(token)
+        }
+      }
     }
-  }, [activeTab])
+  }, [activeTab, users])
 
   const handleLogout = () => {
     if (wsRef.current) {
@@ -281,88 +579,143 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-600">Admin Dashboard</h1>
           <div className="flex items-center gap-4">
-            <span className="text-gray-600">{user?.email}</span>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 text-gray-600 hover:text-gray-900"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+            <h1 className="text-xl sm:text-2xl font-bold text-blue-600">Admin Dashboard</h1>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[120px] sm:max-w-none">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-gray-700 hover:text-gray-900 text-sm sm:text-base"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="flex border-b overflow-x-auto">
+        <div className="bg-white rounded-lg shadow mb-4 sm:mb-8">
+          <div className={`flex border-b overflow-x-auto ${mobileMenuOpen ? 'block lg:flex' : 'hidden lg:flex'}`}>
             <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('overview')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'overview'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Activity className="w-4 h-4 inline mr-2" />
+              <Activity className="w-4 h-4 inline mr-1 sm:mr-2" />
               Overview
             </button>
             <button
-              onClick={() => setActiveTab('users')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('users')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'users'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Users className="w-4 h-4 inline mr-2" />
+              <Users className="w-4 h-4 inline mr-1 sm:mr-2" />
               Users
             </button>
             <button
-              onClick={() => setActiveTab('marketplace')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('marketplace')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'marketplace'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Package className="w-4 h-4 inline mr-2" />
+              <Package className="w-4 h-4 inline mr-1 sm:mr-2" />
               Marketplace
             </button>
             <button
-              onClick={() => setActiveTab('subscriptions')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('subscriptions')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'subscriptions'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <ShoppingCart className="w-4 h-4 inline mr-2" />
+              <ShoppingCart className="w-4 h-4 inline mr-1 sm:mr-2" />
               Subscriptions
             </button>
             <button
-              onClick={() => setActiveTab('transactions')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('transactions')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'transactions'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <CreditCard className="w-4 h-4 inline mr-2" />
+              <CreditCard className="w-4 h-4 inline mr-1 sm:mr-2" />
               Transactions
             </button>
             <button
-              onClick={() => setActiveTab('testing')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
+              onClick={() => {
+                setActiveTab('credits')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'credits'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Zap className="w-4 h-4 inline mr-1 sm:mr-2" />
+              Credit Management
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('api-keys')
+                if (services.length === 0) fetchMarketplace()
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
+                activeTab === 'api-keys'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Key className="w-4 h-4 inline mr-1 sm:mr-2" />
+              API Keys
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('testing')
+                setMobileMenuOpen(false)
+              }}
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'testing'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Activity className="w-4 h-4 inline mr-2" />
+              <Activity className="w-4 h-4 inline mr-1 sm:mr-2" />
               API Testing
             </button>
           </div>
@@ -461,15 +814,15 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <table className="w-full min-w-[640px] sm:min-w-0">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Calls</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Calls</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -480,26 +833,26 @@ export default function AdminDashboard() {
                   ) : (
                     filteredUsers.map((u) => (
                       <tr key={u.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{u.full_name || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">{u.email}</div>
+                          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{u.email}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                             {u.role}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                           }`}>
                             {u.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                           {u.total_api_calls.toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           {new Date(u.created_at).toLocaleDateString()}
                         </td>
                       </tr>
@@ -514,12 +867,21 @@ export default function AdminDashboard() {
         {/* Marketplace Tab */}
         {activeTab === 'marketplace' && (
           <div className="space-y-6">
+            {isLoadingMarketplace ? (
+              <div className="bg-white rounded-lg shadow p-12">
+                <div className="flex items-center justify-center">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Loading marketplace data...</span>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Industries */}
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Industries ({industries.length})</h2>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {industries.map((ind) => (
                     <div key={ind.id} className="border rounded-lg p-4">
@@ -541,7 +903,7 @@ export default function AdminDashboard() {
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Categories ({categories.length})</h2>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {categories.map((cat) => (
                     <div key={cat.id} className="border rounded-lg p-4">
@@ -558,7 +920,7 @@ export default function AdminDashboard() {
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Services ({services.length})</h2>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {services.map((svc) => (
                     <div key={svc.id} className="border rounded-lg p-4">
@@ -577,6 +939,8 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -594,45 +958,66 @@ export default function AdminDashboard() {
                   Create Subscription
                 </button>
               </div>
-              <div className="p-6">
-                {subscriptions.length === 0 ? (
+              <div className="p-4 sm:p-6">
+                {isLoadingSubscriptions ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-3 text-gray-600">Loading subscriptions...</span>
+                  </div>
+                ) : subscriptions.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No subscriptions found</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                  <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                    <table className="w-full min-w-[800px] sm:min-w-0">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remaining</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client Status</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service Status</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remaining</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {subscriptions.map((sub) => (
                           <tr key={sub.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{sub.user_email || 'N/A'}</div>
+                            <td className="px-3 sm:px-6 py-4">
+                              <div className="text-xs sm:text-sm font-medium text-gray-900">{sub.user_name || 'N/A'}</div>
+                              <div className="text-xs sm:text-sm text-gray-500">{sub.user_email || 'N/A'}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{sub.service_name || 'N/A'}</div>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                sub.user_status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {sub.user_status || 'N/A'}
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-3 sm:px-6 py-4">
+                              <div className="text-xs sm:text-sm font-medium text-gray-900">{sub.service_name || 'N/A'}</div>
+                              {sub.service_slug && (
+                                <div className="text-xs text-gray-500">{sub.service_slug}</div>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                                 sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                               }`}>
                                 {sub.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {sub.credits_allocated}
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                              {sub.credits_allocated?.toFixed(2) || '0.00'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {sub.credits_remaining}
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                              {sub.credits_remaining?.toFixed(2) || '0.00'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                              {sub.expires_at ? new Date(sub.expires_at).toLocaleDateString() : 'No expiry'}
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                               {new Date(sub.created_at).toLocaleDateString()}
                             </td>
                           </tr>
@@ -648,32 +1033,47 @@ export default function AdminDashboard() {
 
         {/* Create Subscription Modal */}
         {showCreateSubscription && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-bold mb-4">Create Subscription</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg sm:text-xl font-bold mb-4">Create Subscription</h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">User</label>
-                  <select
+                  <SearchableSelect
+                    options={users
+                      .filter(u => u.role === 'client')
+                      .map(u => ({
+                        value: u.id,
+                        label: `${u.email} - ${u.full_name || 'No name'}`
+                      }))}
                     value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  >
-                    <option value="">Select a user</option>
-                    {users.filter(u => u.role === 'client').map((u) => (
-                      <option key={u.id} value={u.id}>{u.email} ({u.full_name})</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedUserId}
+                    placeholder="Select a user..."
+                    searchPlaceholder="Search users by email or name..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                  <input
+                    type="text"
+                    placeholder="Search services..."
+                    value={serviceSearchDropdownTerm}
+                    onChange={(e) => setServiceSearchDropdownTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-t-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
                   <select
                     value={selectedServiceId}
                     onChange={(e) => setSelectedServiceId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-b-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    size={5}
                   >
                     <option value="">Select a service</option>
-                    {services.map((s) => (
+                    {services
+                      .filter(s => {
+                        if (!serviceSearchDropdownTerm) return true
+                        return s.name.toLowerCase().includes(serviceSearchDropdownTerm.toLowerCase())
+                      })
+                      .map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
@@ -721,7 +1121,417 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-bold">All Transactions</h2>
             </div>
             <div className="p-6">
-              <p className="text-gray-500">Transaction history view - Fetch from API</p>
+              {isLoadingTransactions ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-gray-600">Loading transactions...</span>
+                </div>
+              ) : transactions.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No transactions found</p>
+              ) : (
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full min-w-[640px] sm:min-w-0">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount Paid</th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {transactions.map((txn) => (
+                        <tr key={txn.id} className="hover:bg-gray-50">
+                          <td className="px-3 sm:px-6 py-4">
+                            <div className="text-xs sm:text-sm text-gray-900">{txn.user_email || 'N/A'}</div>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                            ₹{txn.amount_paid?.toFixed(2) || '0.00'}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                            {txn.credits_purchased?.toFixed(2) || '0.00'}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              txn.payment_status === 'completed' ? 'bg-green-100 text-green-800' : 
+                              txn.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {txn.payment_status}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                            {new Date(txn.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Credit Management Tab */}
+        {activeTab === 'credits' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 sm:p-6 border-b">
+                <h2 className="text-xl font-bold">Allocate Credits to User</h2>
+                <p className="text-sm text-gray-600 mt-1">Add credits to user account with flexible pricing</p>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <SearchableSelect
+                      options={users
+                        .filter(u => u.role === 'client')
+                        .map(u => ({
+                          value: u.id,
+                          label: `${u.email} - ${u.full_name || 'No name'}`
+                        }))}
+                      value={creditAllocationUserId}
+                      onChange={setCreditAllocationUserId}
+                      placeholder="Select a user..."
+                      searchPlaceholder="Search users by email or name..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Credits Amount</label>
+                      <input
+                        type="number"
+                        placeholder="100"
+                        min="1"
+                        step="1"
+                        value={creditsAmount}
+                        onChange={(e) => setCreditsAmount(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid (₹)</label>
+                      <input
+                        type="number"
+                        placeholder="500"
+                        min="0"
+                        step="1"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                    <textarea
+                      placeholder="Enter any notes about this credit allocation..."
+                      rows={3}
+                      value={allocationNotes}
+                      onChange={(e) => setAllocationNotes(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                  </div>
+                  <button 
+                    onClick={allocateCredits}
+                    disabled={isAllocatingCredits || !creditAllocationUserId || !creditsAmount}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isAllocatingCredits ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Allocating...
+                      </>
+                    ) : (
+                      'Allocate Credits'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 sm:p-6 border-b">
+                <h2 className="text-xl font-bold">Set User-Specific Pricing</h2>
+                <p className="text-sm text-gray-600 mt-1">Customize per-credit pricing for individual users (Global default: ₹5 per credit)</p>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <SearchableSelect
+                      options={users
+                        .filter(u => u.role === 'client')
+                        .map(u => ({
+                          value: u.id,
+                          label: `${u.email} - ${u.full_name || 'No name'}`
+                        }))}
+                      value={pricingUserId}
+                      onChange={(value) => {
+                        setPricingUserId(value)
+                        if (value) {
+                          // Fetch credit info for the selected user
+                          const fetchSelectedUserCreditInfo = async () => {
+                            try {
+                              const token = localStorage.getItem('access_token')
+                              const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+                                ? 'http://localhost:8000'
+                                : 'https://apiservices-backend.onrender.com'
+                              const headers = { Authorization: `Bearer ${token}` }
+                              const response = await axios.get(`${apiUrl}/api/v1/admin/users/${value}/credits`, { headers })
+                              setUserCreditInfo({ ...userCreditInfo, [value]: response.data })
+                            } catch (err) {
+                              console.error('Failed to fetch credit info:', err)
+                            }
+                          }
+                          fetchSelectedUserCreditInfo()
+                        }
+                      }}
+                      placeholder="Select a user..."
+                      searchPlaceholder="Search users by email or name..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Price Per Credit (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="5.00"
+                      min="0.01"
+                      step="0.01"
+                      value={pricePerCredit}
+                      onChange={(e) => setPricePerCredit(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Default global pricing: ₹5.00 per credit</p>
+                  </div>
+                  <button 
+                    onClick={updateUserPricing}
+                    disabled={isUpdatingPricing || !pricingUserId || !pricePerCredit}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isUpdatingPricing ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update User Pricing'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 sm:p-6 border-b">
+                <h2 className="text-xl font-bold">User Credit Information</h2>
+              </div>
+              <div className="p-4 sm:p-6">
+                {isLoadingCreditInfo ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-3 text-gray-600">Loading credit information...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {users.filter(u => u.role === 'client').map((u) => {
+                      const creditInfo = userCreditInfo[u.id]
+                      return (
+                        <div key={u.id} className="border rounded-lg p-4">
+                          <h3 className="font-semibold text-gray-900">{u.full_name}</h3>
+                          <p className="text-sm text-gray-600">{u.email}</p>
+                          <div className="mt-3 space-y-1">
+                            <p className="text-xs text-gray-500">
+                              Total Credits: <span className="font-semibold">{creditInfo?.total_credits?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Used: <span className="font-semibold">{creditInfo?.credits_used?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Remaining: <span className="font-semibold">{creditInfo?.credits_remaining?.toFixed(2) || '0.00'}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Price/Credit: <span className="font-semibold">₹{creditInfo?.price_per_credit?.toFixed(2) || '5.00'}</span>
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Service Access Management Tab */}
+        {activeTab === 'api-keys' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-bold">Service Access Management</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Grant or revoke service access for users. Users can then generate their own API keys for services they have access to.
+                </p>
+              </div>
+              
+              {/* Grant Service Access Form */}
+              <div className="p-3 sm:p-4 md:p-6 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold mb-4">Grant Service Access</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    {users.length === 0 ? (
+                      <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm">
+                        Loading users...
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        options={users
+                          .filter(u => u.role === 'client')
+                          .map(u => ({
+                            value: u.id,
+                            label: `${u.email} - ${u.full_name || 'No name'}`
+                          }))}
+                        value={selectedUserForAccess}
+                        onChange={(value) => {
+                          setSelectedUserForAccess(value)
+                          if (value) {
+                            fetchUserServiceAccess(value)
+                          }
+                        }}
+                        placeholder="Select a user..."
+                        searchPlaceholder="Search users by email or name..."
+                      />
+                    )}
+                    {users.length > 0 && users.filter(u => u.role === 'client').length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1">No client users found</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Select Services <span className="text-gray-500 text-xs">(Multiple selection allowed)</span>
+                      </label>
+                      {services.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedServicesForGrant.length === services.length) {
+                              // Deselect all
+                              setSelectedServicesForGrant([])
+                            } else {
+                              // Select all
+                              setSelectedServicesForGrant(services.map(svc => svc.id))
+                            }
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          {selectedServicesForGrant.length === services.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
+                    </div>
+                    {services.length === 0 ? (
+                      <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm">
+                        {isLoadingMarketplace ? 'Loading services...' : 'No services available'}
+                      </div>
+                    ) : (
+                      <>
+                        <SearchableMultiSelect
+                          options={services.map(svc => ({
+                            value: svc.id,
+                            label: svc.name
+                          }))}
+                          selectedValues={selectedServicesForGrant}
+                          onChange={setSelectedServicesForGrant}
+                          placeholder="Select services..."
+                          searchPlaceholder="Search services..."
+                        />
+                        <div className="flex items-center gap-2 mt-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedServicesForGrant.length === services.length && services.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedServicesForGrant(services.map(svc => svc.id))
+                                } else {
+                                  setSelectedServicesForGrant([])
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 font-medium">
+                              Select All Services ({services.length} total)
+                            </span>
+                          </label>
+                        </div>
+                      </>
+                    )}
+                    {selectedServicesForGrant.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedServicesForGrant.length} of {services.length} service(s) selected
+                      </p>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={handleGrantServiceAccess}
+                    disabled={!selectedUserForAccess || selectedServicesForGrant.length === 0 || isGrantingAccess}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isGrantingAccess ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Granting Access...
+                      </>
+                    ) : (
+                      `Grant Access to ${selectedServicesForGrant.length > 0 ? `${selectedServicesForGrant.length} ` : ''}Service${selectedServicesForGrant.length !== 1 ? 's' : ''}`
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              {/* User's Service Access List */}
+              {selectedUserForAccess && (
+                <div className="p-4 sm:p-6">
+                  <h3 className="text-lg font-semibold mb-4">User's Service Access</h3>
+                  {isLoadingServiceAccess ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader className="w-6 h-6 animate-spin text-blue-600" />
+                      <span className="ml-3 text-gray-600">Loading service access...</span>
+                    </div>
+                  ) : userServiceAccess[selectedUserForAccess]?.length > 0 ? (
+                    <div className="space-y-3">
+                      {userServiceAccess[selectedUserForAccess].map((access: any) => (
+                        <div key={access.id} className="border rounded-lg p-4 flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{access.service?.name || 'Service'}</h4>
+                            {access.service?.description && (
+                              <p className="text-sm text-gray-600 mt-1">{access.service.description}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              Granted: {new Date(access.granted_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRevokeServiceAccess(selectedUserForAccess, access.service_id)}
+                            className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
+                          >
+                            Revoke Access
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No service access granted yet</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

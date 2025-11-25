@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use localhost for development, production URL for deployed version
+const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://apiservices-backend.onrender.com'
 
 // Create axios instance
 const apiClient = axios.create({
@@ -15,9 +18,14 @@ const apiClient = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Don't add auth token for login/register endpoints
+    const isAuthEndpoint = config.url?.includes('/auth/login') || config.url?.includes('/auth/register')
+    
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
     return config
   },

@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
-import { Play, Copy, Check, AlertCircle, Loader } from 'lucide-react'
+import { Play, Copy, Check, AlertCircle, Loader, Search, ChevronDown } from 'lucide-react'
 
 interface ApiEndpoint {
   id: string
@@ -130,6 +130,244 @@ const API_ENDPOINTS: ApiEndpoint[] = [
         example: '27ABCDE1234F1Z5'
       }
     ]
+  },
+  {
+    id: 'rc-to-engine-chassis',
+    name: 'RC to Engine and Chassis Number',
+    description: 'Get engine and chassis number from vehicle registration',
+    endpoint: '/api/v1/services/rc-to-engine-chassis',
+    method: 'POST',
+    fields: [
+      {
+        name: 'reg_no',
+        label: 'Registration Number',
+        type: 'text',
+        required: true,
+        placeholder: 'TR02AC1234',
+        example: 'TR02AC1234'
+      }
+    ]
+  },
+  {
+    id: 'basic-vehicle-info',
+    name: 'Basic Vehicle Info',
+    description: 'Get basic vehicle information',
+    endpoint: '/api/v1/services/basic-vehicle-info',
+    method: 'POST',
+    fields: [
+      {
+        name: 'reg_no',
+        label: 'Registration Number',
+        type: 'text',
+        required: true,
+        placeholder: 'TR02AC1234',
+        example: 'TR02AC1234'
+      }
+    ]
+  },
+  {
+    id: 'dl-to-challan',
+    name: 'DL to Challan API',
+    description: 'Get vehicle owner details from driving licence',
+    endpoint: '/api/v1/services/dl-to-challan',
+    method: 'POST',
+    fields: [
+      {
+        name: 'dl_no',
+        label: 'Driving Licence Number',
+        type: 'text',
+        required: true,
+        placeholder: 'GJ0520210012345',
+        example: 'GJ0520210012345'
+      }
+    ]
+  },
+  {
+    id: 'fuel-price-city',
+    name: 'Fuel Price by City',
+    description: 'Get fuel prices for a city',
+    endpoint: '/api/v1/services/fuel-price-city',
+    method: 'POST',
+    fields: [
+      {
+        name: 'city',
+        label: 'City',
+        type: 'text',
+        required: true,
+        placeholder: 'MUMBAI',
+        example: 'MUMBAI'
+      }
+    ]
+  },
+  {
+    id: 'fuel-price-state',
+    name: 'Fuel Price by State',
+    description: 'Get fuel prices for a state',
+    endpoint: '/api/v1/services/fuel-price-state',
+    method: 'POST',
+    fields: [
+      {
+        name: 'state',
+        label: 'State',
+        type: 'text',
+        required: true,
+        placeholder: 'MAHARASHTRA',
+        example: 'MAHARASHTRA'
+      }
+    ]
+  },
+  {
+    id: 'aadhaar-to-pan',
+    name: 'Aadhaar to PAN',
+    description: 'Get PAN number from Aadhaar number',
+    endpoint: '/api/v1/services/aadhaar-to-pan',
+    method: 'POST',
+    fields: [
+      {
+        name: 'aadhaar_number',
+        label: 'Aadhaar Number',
+        type: 'text',
+        required: true,
+        placeholder: '123456789012',
+        example: '123456789012'
+      }
+    ]
+  },
+  {
+    id: 'pan-to-aadhaar',
+    name: 'PAN to Aadhaar Verification',
+    description: 'Verify Aadhaar from PAN number',
+    endpoint: '/api/v1/services/pan-to-aadhaar',
+    method: 'POST',
+    fields: [
+      {
+        name: 'pan_number',
+        label: 'PAN Number',
+        type: 'text',
+        required: true,
+        placeholder: 'ABCDE1234F',
+        example: 'ABCDE1234F'
+      }
+    ]
+  },
+  {
+    id: 'address-verification',
+    name: 'Address Verification',
+    description: 'Verify address from Aadhaar number',
+    endpoint: '/api/v1/services/address-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'aadhaar_no',
+        label: 'Aadhaar Number',
+        type: 'text',
+        required: true,
+        placeholder: '123456789012',
+        example: '123456789012'
+      }
+    ]
+  },
+  {
+    id: 'gst-basic-details',
+    name: 'GST Basic Details',
+    description: 'Get basic GST details',
+    endpoint: '/api/v1/services/gst-basic-details',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'gst-address',
+    name: 'GST Address',
+    description: 'Get GST registered address',
+    endpoint: '/api/v1/services/gst-address',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'gst-aadhaar-status',
+    name: 'GST Aadhaar Status',
+    description: 'Check GST Aadhaar authentication status',
+    endpoint: '/api/v1/services/gst-aadhaar-status',
+    method: 'POST',
+    fields: [
+      {
+        name: 'gstin',
+        label: 'GSTIN',
+        type: 'text',
+        required: true,
+        placeholder: '27ABCDE1234F1Z5',
+        example: '27ABCDE1234F1Z5'
+      }
+    ]
+  },
+  {
+    id: 'msme-verification',
+    name: 'MSME Verification',
+    description: 'Verify MSME registration details',
+    endpoint: '/api/v1/services/msme-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'udyam_number',
+        label: 'Udyam Number',
+        type: 'text',
+        required: true,
+        placeholder: 'UDYAM-MH-01-0001234',
+        example: 'UDYAM-MH-01-0001234'
+      }
+    ]
+  },
+  {
+    id: 'phone-to-udyam',
+    name: 'Udyam API',
+    description: 'Get Udyam details from phone number',
+    endpoint: '/api/v1/services/phone-to-udyam',
+    method: 'POST',
+    fields: [
+      {
+        name: 'phone_number',
+        label: 'Phone Number',
+        type: 'text',
+        required: true,
+        placeholder: '9876543210',
+        example: '9876543210'
+      }
+    ]
+  },
+  {
+    id: 'voter-id-verification',
+    name: 'Voter ID Verification',
+    description: 'Verify voter ID details',
+    endpoint: '/api/v1/services/voter-id-verification',
+    method: 'POST',
+    fields: [
+      {
+        name: 'epic_number',
+        label: 'EPIC Number',
+        type: 'text',
+        required: true,
+        placeholder: 'ABC1234567',
+        example: 'ABC1234567'
+      }
+    ]
   }
 ]
 
@@ -144,8 +382,30 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [isEndpointDropdownOpen, setIsEndpointDropdownOpen] = useState(false)
+  const [endpointSearchTerm, setEndpointSearchTerm] = useState('')
+  const endpointDropdownRef = useRef<HTMLDivElement>(null)
 
   const currentEndpoint = API_ENDPOINTS.find(e => e.id === selectedEndpoint)!
+
+  // Filter endpoints based on search term
+  const filteredEndpoints = API_ENDPOINTS.filter(endpoint =>
+    endpoint.name.toLowerCase().includes(endpointSearchTerm.toLowerCase()) ||
+    endpoint.description.toLowerCase().includes(endpointSearchTerm.toLowerCase())
+  )
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (endpointDropdownRef.current && !endpointDropdownRef.current.contains(event.target as Node)) {
+        setIsEndpointDropdownOpen(false)
+        setEndpointSearchTerm('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setFormData({ ...formData, [fieldName]: value })
@@ -169,7 +429,9 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
     setResponse(null)
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
       const url = `${apiUrl}${currentEndpoint.endpoint}`
 
       const payload: Record<string, any> = {}
@@ -179,14 +441,18 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         }
       })
 
+      const startTime = performance.now()
       const response = await axios.post(url, payload, {
         headers: {
           'X-API-Key': apiKey,
           'Content-Type': 'application/json'
         }
       })
+      const endTime = performance.now()
+      const latency = Math.round(endTime - startTime)
 
-      setResponse(response.data)
+      // Add latency info to response for display
+      setResponse({ ...response.data, __latency_ms: latency })
     } catch (err: any) {
       setError(
         err.response?.data?.detail || 
@@ -220,19 +486,19 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b">
-        <h2 className="text-xl font-bold mb-2">API Testing</h2>
-        <p className="text-sm text-gray-600">
+      <div className="p-4 sm:p-6 border-b">
+        <h2 className="text-lg sm:text-xl font-bold mb-2">API Testing</h2>
+        <p className="text-xs sm:text-sm text-gray-600">
           Test your API endpoints with real requests. Select an endpoint and fill in the required fields.
         </p>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* API Key Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-900">Using API Key:</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-blue-900">Using API Key:</p>
               <code className="text-xs text-blue-700 mt-1 block break-all">{apiKey}</code>
             </div>
             <button
@@ -252,55 +518,103 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
           </div>
         </div>
 
-        {/* Endpoint Selector */}
+        {/* Endpoint Selector with Search */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select API Endpoint
           </label>
-          <select
-            value={selectedEndpoint}
-            onChange={(e) => {
-              setSelectedEndpoint(e.target.value)
-              setFormData({})
-              setResponse(null)
-              setError(null)
-            }}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-            style={{ color: '#111827' }}
-          >
-            {API_ENDPOINTS.map(endpoint => (
-              <option key={endpoint.id} value={endpoint.id} style={{ color: '#111827' }}>
-                {endpoint.name} - {endpoint.description}
-              </option>
-            ))}
-          </select>
+          <div className="relative" ref={endpointDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsEndpointDropdownOpen(!isEndpointDropdownOpen)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white text-left flex items-center justify-between"
+            >
+              <span className="truncate">
+                {currentEndpoint.name} - {currentEndpoint.description}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-2 transition-transform ${isEndpointDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isEndpointDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                <div className="p-2 border-b border-gray-200">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={endpointSearchTerm}
+                      onChange={(e) => setEndpointSearchTerm(e.target.value)}
+                      placeholder="Search endpoints..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredEndpoints.length > 0 ? (
+                    filteredEndpoints.map((endpoint) => (
+                      <button
+                        key={endpoint.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEndpoint(endpoint.id)
+                          setFormData({})
+                          setResponse(null)
+                          setError(null)
+                          setIsEndpointDropdownOpen(false)
+                          setEndpointSearchTerm('')
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                          selectedEndpoint === endpoint.id ? 'bg-blue-100 font-medium' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {selectedEndpoint === endpoint.id && (
+                            <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{endpoint.name}</p>
+                            <p className="text-xs text-gray-600 mt-0.5 truncate">{endpoint.description}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-gray-500 text-center">No endpoints found</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Endpoint Info */}
-        <div className="bg-gray-50 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">{currentEndpoint.name}</p>
+        <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-gray-900">{currentEndpoint.name}</p>
               <p className="text-xs text-gray-600 mt-1">{currentEndpoint.description}</p>
             </div>
-            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded flex-shrink-0">
               {currentEndpoint.method}
             </span>
           </div>
-          <code className="text-xs text-gray-600">
-            {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}{currentEndpoint.endpoint}
+          <code className="text-xs text-gray-600 break-all">
+            {typeof window !== 'undefined' && window.location.hostname === 'localhost'
+              ? 'http://localhost:8000'
+              : 'https://apiservices-backend.onrender.com'}{currentEndpoint.endpoint}
           </code>
         </div>
 
         {/* Form Fields */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700">
               Request Parameters
             </label>
             <button
               onClick={fillExample}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
             >
               Fill Example
             </button>
@@ -367,7 +681,14 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
         {response && (
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-50 px-4 py-2 flex items-center justify-between border-b">
+              <div className="flex items-center gap-3">
               <p className="text-sm font-semibold text-gray-900">Response</p>
+                {response.__latency_ms && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
+                    {response.__latency_ms}ms latency
+                  </span>
+                )}
+              </div>
               <button
                 onClick={copyResponse}
                 className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900"

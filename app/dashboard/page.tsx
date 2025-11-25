@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import apiClient from '../../lib/axios'
-import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap } from 'lucide-react'
+import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap, Loader, Menu, Search } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 
 interface ApiKey {
@@ -21,6 +21,13 @@ interface ApiKey {
     name: string
     slug: string
   }
+  services?: Array<{
+    id: string
+    name: string
+    slug: string
+  }>
+  allowed_services?: string[]
+  whitelist_urls?: string[]
 }
 
 interface Service {
@@ -42,6 +49,8 @@ interface Subscription {
   credits_allocated: number
   credits_remaining: number
   expires_at: string | null
+  created_at?: string
+  started_at?: string
 }
 
 interface CreditBalance {
@@ -56,17 +65,28 @@ export default function ClientDashboard() {
   const [user, setUser] = useState<any>(null)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [services, setServices] = useState<Service[]>([])
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  // Subscriptions removed - using service access instead
   const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'keys' | 'marketplace' | 'subscriptions' | 'credits'>('keys')
-  const [showCreateKey, setShowCreateKey] = useState(false)
-  const [selectedServiceForKey, setSelectedServiceForKey] = useState<string>('')
-  const [newKeyName, setNewKeyName] = useState('')
+  const [activeTab, setActiveTab] = useState<'keys' | 'marketplace' | 'credits'>('keys')
   const [purchaseAmount, setPurchaseAmount] = useState('')
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [selectedKeyForTesting, setSelectedKeyForTesting] = useState<string | null>(null)
+  const [isLoadingKeys, setIsLoadingKeys] = useState(false)
+  const [isLoadingServices, setIsLoadingServices] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null)
+  const [isLoadingServiceAccess, setIsLoadingServiceAccess] = useState(false)
+  
+  // API Key Generation State
+  const [showGenerateKeyModal, setShowGenerateKeyModal] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
+  const [whitelistUrls, setWhitelistUrls] = useState<string[]>([''])
+  const [userServiceAccess, setUserServiceAccess] = useState<Service[]>([])
+  const [isGeneratingKey, setIsGeneratingKey] = useState(false)
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('')
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -87,7 +107,8 @@ export default function ClientDashboard() {
     // Fetch data and services in parallel
     Promise.all([
       fetchData(),
-      fetchServices()
+      fetchServices(),
+      fetchUserServiceAccess()
     ]).catch(err => {
       console.error('Failed to load initial data:', err)
       setLoading(false) // Ensure loading state is cleared even on error
@@ -103,7 +124,9 @@ export default function ClientDashboard() {
   }, [activeTab])
 
   const setupWebSocket = (userId: string, token: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:8000'
+      : 'https://apiservices-backend.onrender.com'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     
     try {
@@ -150,16 +173,13 @@ export default function ClientDashboard() {
           })
         }
         break
-      case 'subscription':
-        // Refresh subscriptions
-        fetchSubscriptions()
-        break
     }
   }
 
   const fetchData = async (token?: string) => {
+    setIsLoadingKeys(true)
     try {
-      const [keysRes, balanceRes, subscriptionsRes] = await Promise.all([
+      const [keysRes, balanceRes] = await Promise.all([
         apiClient.get('/api/v1/client/api-keys').catch(err => {
           console.error('Failed to fetch API keys:', err)
           return { data: [] }
@@ -167,12 +187,10 @@ export default function ClientDashboard() {
         apiClient.get('/api/v1/client/credits/balance').catch(err => {
           console.error('Failed to fetch credit balance:', err)
           return { data: { total_credits: 0, credits_used: 0, credits_remaining: 0 } }
-        }),
-        apiClient.get('/api/v1/client/subscriptions').catch(err => {
-          console.error('Failed to fetch subscriptions:', err)
-          return { data: [] }
         })
       ])
+      
+      // Show loading feedback during fetch
 
       setApiKeys(keysRes.data || [])
       // Ensure creditBalance has all required fields with defaults
@@ -183,7 +201,6 @@ export default function ClientDashboard() {
           credits_remaining: balanceRes.data.credits_remaining || 0
         })
       }
-      setSubscriptions(subscriptionsRes.data || [])
       
       // Auto-select first active key for testing (only if full_key is available)
       // Note: full_key is only available when creating a new key, not in list
@@ -200,94 +217,48 @@ export default function ClientDashboard() {
       }
     } finally {
       setLoading(false)
+      setIsLoadingKeys(false)
+    }
+  }
+
+  const fetchUserServiceAccess = async () => {
+    setIsLoadingServiceAccess(true)
+    try {
+      const response = await apiClient.get('/api/v1/client/service-access')
+      setUserServiceAccess(response.data || [])
+    } catch (err) {
+      console.error('Failed to fetch service access:', err)
+      setUserServiceAccess([])
+    } finally {
+      setIsLoadingServiceAccess(false)
     }
   }
 
   const fetchServices = async () => {
+    setIsLoadingServices(true)
     try {
       const response = await apiClient.get('/api/v1/client/services')
       setServices(response.data || [])
     } catch (err) {
       console.error('Failed to fetch services:', err)
       setServices([]) // Set empty array on error
-    }
-  }
-
-  const fetchSubscriptions = async (token?: string) => {
-    try {
-      const response = await apiClient.get('/api/v1/client/subscriptions')
-      setSubscriptions(response.data)
-    } catch (err) {
-      console.error('Failed to fetch subscriptions:', err)
-    }
-  }
-
-  const createApiKey = async () => {
-    if (!newKeyName.trim() || !selectedServiceForKey) {
-      alert('Please select a service and enter a key name')
-      return
-    }
-
-    try {
-      const response = await apiClient.post(
-        '/api/v1/client/api-keys/generate',
-        { service_id: selectedServiceForKey, name: newKeyName }
-      )
-
-      const newKey = response.data
-      // Refresh API keys list to get updated data
-      const token = localStorage.getItem('access_token')
-      if (token) {
-        await fetchData()
-      }
-      setNewKeyName('')
-      setSelectedServiceForKey('')
-      setShowCreateKey(false)
-      
-      if (newKey.full_key) {
-        setSelectedKeyForTesting(newKey.full_key)
-        alert(`API key created successfully! Key: ${newKey.full_key}\n\n⚠️ Save this key - it will only be shown once!`)
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create API key. Make sure you have an active subscription for this service.')
-    }
-  }
-
-  // Subscription creation removed - only admins can create subscriptions
-  // Clients can only view their subscriptions
-
-  const purchaseCredits = async () => {
-    const amount = parseFloat(purchaseAmount)
-    if (!amount || amount < 1000) {
-      alert('Minimum purchase amount is ₹1000')
-      return
-    }
-
-    try {
-      const response = await apiClient.post(
-        '/api/v1/client/credits/purchase',
-        { amount }
-      )
-
-      // Refresh all data after credit purchase
-      await fetchData()
-      setPurchaseAmount('')
-      setShowPurchaseModal(false)
-      alert(`Successfully purchased ${response.data.credits_purchased} credits!`)
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to purchase credits')
+    } finally {
+      setIsLoadingServices(false)
     }
   }
 
   const deleteApiKey = async (keyId: string) => {
-    if (!confirm('Are you sure you want to revoke this API key?')) return
+    if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) return
 
+    setDeletingKeyId(keyId)
     try {
       await apiClient.delete(`/api/v1/client/api-keys/${keyId}`)
 
       setApiKeys(apiKeys.filter(k => k.id !== keyId))
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to revoke API key')
+      alert(err.response?.data?.detail || 'Failed to delete API key')
+    } finally {
+      setDeletingKeyId(null)
     }
   }
 
@@ -295,6 +266,56 @@ export default function ClientDashboard() {
     navigator.clipboard.writeText(text)
     setCopiedKey(keyId)
     setTimeout(() => setCopiedKey(null), 2000)
+  }
+
+  const handleGenerateApiKey = async () => {
+    if (!newKeyName.trim()) {
+      alert('Please enter a name for the API key')
+      return
+    }
+
+    // Filter out empty whitelist URLs
+    const validWhitelistUrls = whitelistUrls.filter(url => url.trim() !== '')
+
+    setIsGeneratingKey(true)
+    try {
+      // Don't send service_ids - backend will automatically use all services user has access to
+      const response = await apiClient.post('/api/v1/client/api-keys/generate', {
+        name: newKeyName,
+        service_ids: [], // Empty array - backend will auto-populate with all accessible services
+        whitelist_urls: validWhitelistUrls.length > 0 ? validWhitelistUrls : undefined
+      })
+
+      // Add the new key to the list
+      setApiKeys([response.data, ...apiKeys])
+      
+      // Reset form
+      setNewKeyName('')
+      setSelectedServiceIds([])
+      setWhitelistUrls([''])
+      setServiceSearchTerm('')
+      setShowGenerateKeyModal(false)
+      
+      alert('API key generated successfully! Make sure to copy it now - you won\'t be able to see it again.')
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to generate API key')
+    } finally {
+      setIsGeneratingKey(false)
+    }
+  }
+
+  const addWhitelistUrl = () => {
+    setWhitelistUrls([...whitelistUrls, ''])
+  }
+
+  const removeWhitelistUrl = (index: number) => {
+    setWhitelistUrls(whitelistUrls.filter((_, i) => i !== index))
+  }
+
+  const updateWhitelistUrl = (index: number, value: string) => {
+    const updated = [...whitelistUrls]
+    updated[index] = value
+    setWhitelistUrls(updated)
   }
 
   const handleLogout = () => {
@@ -310,6 +331,7 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (activeTab === 'marketplace') {
       fetchServices()
+      fetchUserServiceAccess() // Refresh service access when marketplace tab is opened
     }
   }, [activeTab])
 
@@ -327,75 +349,64 @@ export default function ClientDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 text-black">
       <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-black">Client Dashboard</h1>
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-2 sm:px-4 py-4 flex items-center justify-between">
+          <h1 className="text-lg sm:text-2xl font-bold text-black">Client Dashboard</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
             {creditBalance && creditBalance.credits_remaining !== undefined && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
-                <Zap className="w-4 h-4 text-black" />
-                <span className="text-sm font-semibold text-black">
+              <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-blue-50 rounded-lg">
+                <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-black" />
+                <span className="text-xs sm:text-sm font-semibold text-black">
                   {(creditBalance.credits_remaining || 0).toFixed(2)} Credits
                 </span>
               </div>
             )}
-            <span className="text-black">{user?.email}</span>
+            <span className="text-xs sm:text-sm text-black truncate max-w-[100px] sm:max-w-none">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-black hover:text-black"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-black hover:text-black text-sm sm:text-base"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-8">
-          <div className="flex border-b">
+        <div className="bg-white rounded-lg shadow mb-4 sm:mb-8">
+          <div className="flex border-b overflow-x-auto">
             <button
               onClick={() => setActiveTab('keys')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'keys'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <Key className="w-4 h-4 inline mr-2" />
+              <Key className="w-4 h-4 inline mr-1 sm:mr-2" />
               API Keys
             </button>
             <button
               onClick={() => setActiveTab('marketplace')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'marketplace'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <Package className="w-4 h-4 inline mr-2" />
+              <Package className="w-4 h-4 inline mr-1 sm:mr-2" />
               Marketplace
             </button>
             <button
-              onClick={() => setActiveTab('subscriptions')}
-              className={`px-6 py-3 font-medium ${
-                activeTab === 'subscriptions'
-                  ? 'border-b-2 border-blue-600 text-black'
-                  : 'text-black hover:text-black'
-              }`}
-            >
-              <ShoppingCart className="w-4 h-4 inline mr-2" />
-              Subscriptions
-            </button>
-            <button
               onClick={() => setActiveTab('credits')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'credits'
                   ? 'border-b-2 border-blue-600 text-black'
                   : 'text-black hover:text-black'
               }`}
             >
-              <CreditCard className="w-4 h-4 inline mr-2" />
+              <CreditCard className="w-4 h-4 inline mr-1 sm:mr-2" />
               Credits
             </button>
           </div>
@@ -404,102 +415,96 @@ export default function ClientDashboard() {
         {/* API Keys Tab */}
         {activeTab === 'keys' && (
           <div className="bg-white rounded-lg shadow mb-8">
-            <div className="p-6 border-b flex items-center justify-between">
+            <div className="p-4 sm:p-6 border-b flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Key className="w-6 h-6 text-black" />
                 <h2 className="text-xl font-bold text-black">API Keys</h2>
               </div>
               <button
-                onClick={() => {
-                  setShowCreateKey(!showCreateKey)
-                  if (!showCreateKey) fetchServices()
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                onClick={() => setShowGenerateKeyModal(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base"
               >
                 <Plus className="w-4 h-4" />
-                Generate Key
+                <span className="hidden sm:inline">Generate New Key</span>
+                <span className="sm:hidden">New</span>
               </button>
             </div>
 
-            {showCreateKey && (
-              <div className="p-6 border-b bg-gray-50">
-                {subscriptions.filter(sub => sub.status === 'active').length === 0 ? (
-                  <div className="w-full px-4 py-3 border border-yellow-300 bg-yellow-50 rounded-lg text-black text-sm">
-                    No active subscriptions. Contact admin to get a subscription first.
+            <div className="p-4 sm:p-6 border-b bg-blue-50">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <Key className="w-5 h-5 text-blue-600 mt-0.5" />
                   </div>
-                ) : (
-                  <>
-                    <select
-                      value={selectedServiceForKey}
-                      onChange={(e) => setSelectedServiceForKey(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3 text-black"
-                    >
-                      <option value="">Select a service...</option>
-                      {subscriptions
-                        .filter(sub => sub.status === 'active')
-                        .map(sub => (
-                          <option key={sub.service_id} value={sub.service_id}>
-                            {sub.service?.name || 'Service'} ({sub.credits_remaining} credits remaining)
-                          </option>
-                        ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={newKeyName}
-                      onChange={(e) => setNewKeyName(e.target.value)}
-                      placeholder="Enter API key name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3 text-black"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={createApiKey}
-                        disabled={!selectedServiceForKey || !newKeyName.trim()}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Generate
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowCreateKey(false)
-                          setNewKeyName('')
-                          setSelectedServiceForKey('')
-                        }}
-                        className="px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
+                <div>
+                  <p className="text-sm font-medium text-blue-900 mb-1">API Key Management</p>
+                  <p className="text-sm text-blue-700">
+                    Generate and manage your API keys for services you have access to.
+                  </p>
                     </div>
-                  </>
-                )}
               </div>
-            )}
+            </div>
 
-            <div className="p-6">
-              {apiKeys.length === 0 ? (
-                <p className="text-black text-center py-8">
-                  {subscriptions.filter(sub => sub.status === 'active').length === 0 
-                    ? 'No active subscriptions. Contact admin to get a subscription first, then you can generate API keys.'
-                    : 'No API keys yet. Click "Generate Key" above to create one for a subscribed service!'}
-                </p>
+            <div className="p-4 sm:p-6">
+              {isLoadingKeys ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-3 text-black">Loading API keys...</span>
+                </div>
+              ) : apiKeys.length === 0 ? (
+                <div className="text-center py-8">
+                  <Key className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-black font-medium mb-2">No API Keys Yet</p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Generate your first API key to start using the services you have access to.
+                  </p>
+                  <button
+                    onClick={() => setShowGenerateKeyModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Generate API Key
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {apiKeys.map((key) => (
-                    <div key={key.id} className="border rounded-lg p-4">
+                    <div key={key.id} className="border rounded-lg p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex-1">
                           <h3 className="font-semibold text-black">{key.name}</h3>
                           {key.service && (
                             <p className="text-sm text-black mt-1">Service: {key.service.name}</p>
                           )}
+                          {key.services && key.services.length > 0 && (
+                            <p className="text-sm text-black mt-1">
+                              Services: {key.services.map(s => s.name).join(', ')}
+                            </p>
+                          )}
+                          {key.allowed_services && key.allowed_services.includes('*') && (
+                            <p className="text-sm text-green-600 mt-1 font-semibold">All Services Access</p>
+                          )}
+                          {key.whitelist_urls && key.whitelist_urls.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Whitelisted: {key.whitelist_urls.join(', ')}
+                            </p>
+                          )}
                           {key.full_key ? (
-                            <div className="mt-1">
-                              <code className="text-xs bg-gray-100 px-2 py-1 rounded break-all block text-black">
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-500 mb-1">Full API Key:</p>
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                <code className="text-xs break-all block text-black font-mono">
                                 {key.full_key}
                               </code>
+                                <button
+                                  onClick={() => copyToClipboard(key.full_key!, key.id)}
+                                  className="mt-2 text-xs text-blue-600 hover:text-blue-700"
+                                >
+                                  {copiedKey === key.id ? '✓ Copied!' : 'Copy Key'}
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <p className="text-sm text-black mt-1">
-                              {key.key_prefix}... (Full key only shown once at creation)
+                            <p className="text-sm text-gray-500 mt-1">
+                              {key.key_prefix}... (Key not available - contact admin to regenerate)
                             </p>
                           )}
                         </div>
@@ -537,9 +542,19 @@ export default function ClientDashboard() {
                           )}
                           <button
                             onClick={() => deleteApiKey(key.id)}
-                            className="p-2 hover:bg-red-50 rounded text-black"
+                            disabled={deletingKeyId === key.id}
+                            className={`p-2 rounded text-black ${
+                              deletingKeyId === key.id 
+                                ? 'bg-gray-100 cursor-not-allowed opacity-50' 
+                                : 'hover:bg-red-50'
+                            }`}
+                            title={deletingKeyId === key.id ? 'Deleting...' : 'Delete API Key'}
                           >
+                            {deletingKeyId === key.id ? (
+                              <Loader className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
                             <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -557,13 +572,20 @@ export default function ClientDashboard() {
 
         {/* Marketplace Tab */}
         {activeTab === 'marketplace' && (
+          <>
+            {isLoadingServices ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                <span className="ml-3 text-black">Loading services...</span>
+              </div>
+            ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((service) => {
-              const hasSubscription = subscriptions.some(
-                sub => sub.service_id === service.id && sub.status === 'active'
-              )
+              // Check if user has access to this service (based on admin-granted access, not API keys)
+              const hasServiceAccess = userServiceAccess.some(access => access.id === service.id)
+              
               return (
-                <div key={service.id} className="bg-white rounded-lg shadow p-6">
+                <div key={service.id} className="bg-white rounded-lg shadow p-4 sm:p-6">
                   <h3 className="text-lg font-bold mb-2 text-black">{service.name}</h3>
                   <p className="text-sm text-black mb-4">{service.description}</p>
                   <div className="flex items-center justify-between mb-4">
@@ -576,20 +598,13 @@ export default function ClientDashboard() {
                       </span>
                     )}
                   </div>
-                  {hasSubscription ? (
-                    <button
-                      onClick={() => {
-                        setSelectedServiceForKey(service.id)
-                        setShowCreateKey(true)
-                        setActiveTab('keys')
-                      }}
-                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      Generate API Key
-                    </button>
+                  {hasServiceAccess ? (
+                    <div className="w-full px-4 py-2 bg-green-50 text-green-900 rounded-lg text-center text-sm border border-green-200 font-semibold">
+                      ✓ You have access to this service
+                    </div>
                   ) : (
-                    <p className="w-full px-4 py-2 bg-gray-100 text-black rounded-lg text-center text-sm">
-                      Contact admin to subscribe
+                    <p className="w-full px-4 py-2 bg-blue-50 text-blue-900 rounded-lg text-center text-sm border border-blue-200">
+                      Contact admin to grant access to this service
                     </p>
                   )}
                 </div>
@@ -597,62 +612,24 @@ export default function ClientDashboard() {
             })}
           </div>
         )}
-
-        {/* Subscriptions Tab */}
-        {activeTab === 'subscriptions' && (
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-black">My Subscriptions</h2>
-            </div>
-            <div className="p-6">
-              {subscriptions.length === 0 ? (
-                <p className="text-black text-center py-8">No active subscriptions. Contact admin to get a subscription.</p>
-              ) : (
-                <div className="space-y-4">
-                  {subscriptions.map((sub) => (
-                    <div key={sub.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold text-black">{sub.service?.name || 'Service'}</h3>
-                          <p className="text-sm text-black mt-1">
-                            Credits: {(sub.credits_remaining || 0).toFixed(2)} / {(sub.credits_allocated || 0).toFixed(2)}
-                          </p>
-                          {sub.expires_at && (
-                            <p className="text-xs text-black mt-1">
-                              Expires: {new Date(sub.expires_at).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`px-3 py-1 rounded text-sm ${
-                          sub.status === 'active' ? 'bg-green-100 text-black' : 'bg-gray-100 text-black'
-                        }`}>
-                          {sub.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          </>
         )}
+
 
         {/* Credits Tab */}
         {activeTab === 'credits' && (
           <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b flex items-center justify-between">
+            <div className="p-6 border-b">
               <h2 className="text-xl font-bold text-black">Credit Balance</h2>
-              <button
-                onClick={() => setShowPurchaseModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4" />
-                Purchase Credits
-              </button>
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900">
+                  <strong>Need More Credits?</strong> Please contact your service provider to purchase additional credits with flexible pricing options.
+                </p>
+              </div>
             </div>
             {creditBalance ? (
-              <div className="p-6">
-                <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   <div className="text-center">
                     <p className="text-sm text-black mb-2">Total Credits</p>
                     <p className="text-2xl font-bold text-black">{(creditBalance.total_credits || 0).toFixed(2)}</p>
@@ -666,64 +643,202 @@ export default function ClientDashboard() {
                     <p className="text-2xl font-bold text-black">{(creditBalance.credits_remaining || 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                   <p className="text-sm text-black">
-                    <strong>Pricing:</strong> ₹1000 = 200 credits (1 credit = ₹5)
+                    <strong>Note:</strong> Credit pricing may vary per user. Contact admin for custom pricing options.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <p className="text-black text-center py-8">Loading credit balance...</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Purchase Credits Modal */}
-        {showPurchaseModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-bold mb-4 text-black">Purchase Credits</h3>
-              <input
-                type="number"
-                value={purchaseAmount}
-                onChange={(e) => setPurchaseAmount(e.target.value)}
-                placeholder="Enter amount (₹)"
-                min="1000"
-                step="1000"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 text-black"
-              />
-              {purchaseAmount && (
-                <p className="text-sm text-black mb-4">
-                  You will receive: {(parseFloat(purchaseAmount) * 0.2).toFixed(2)} credits
-                </p>
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={purchaseCredits}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Purchase
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPurchaseModal(false)
-                    setPurchaseAmount('')
-                  }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* API Testing Section */}
         {selectedKeyForTesting && activeTab === 'keys' && (
           <div className="mt-8">
             <ApiTester apiKey={selectedKeyForTesting} />
+          </div>
+        )}
+
+        {/* Generate API Key Modal */}
+        {showGenerateKeyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-bold text-black">Generate New API Key</h2>
+                  <button
+                    onClick={() => {
+                      setShowGenerateKeyModal(false)
+                      setNewKeyName('')
+                      setSelectedServiceIds([])
+                      setWhitelistUrls([''])
+                      setServiceSearchTerm('')
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Key Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="e.g., Production Key, Test Key"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Service Access
+                  </label>
+                  {isLoadingServiceAccess ? (
+                    <div className="border border-gray-300 rounded-lg p-3 flex items-center justify-center min-h-[100px]">
+                      <Loader className="w-6 h-6 animate-spin text-blue-600" />
+                      <span className="ml-3 text-sm text-black">Loading services...</span>
+                    </div>
+                  ) : userServiceAccess.length === 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-sm text-yellow-900">
+                        You don't have access to any services yet. Please contact your administrator to grant service access.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-blue-900 mb-2">
+                        This API key will have access to all services you've been granted access to:
+                      </p>
+                      {/* Search Input */}
+                      <div className="mb-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={serviceSearchTerm}
+                            onChange={(e) => setServiceSearchTerm(e.target.value)}
+                            placeholder="Search services..."
+                            className="w-full pl-10 pr-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="border border-blue-200 rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
+                        {userServiceAccess
+                          .filter(service => 
+                            service.name.toLowerCase().includes(serviceSearchTerm.toLowerCase()) ||
+                            (service.description && service.description.toLowerCase().includes(serviceSearchTerm.toLowerCase()))
+                          )
+                          .map((service) => (
+                            <div key={service.id} className="flex items-center space-x-2 py-2">
+                              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-black font-medium">{service.name}</span>
+                                {service.description && (
+                                  <p className="text-xs text-gray-500 mt-0.5 truncate">{service.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        {userServiceAccess.filter(service => 
+                          service.name.toLowerCase().includes(serviceSearchTerm.toLowerCase()) ||
+                          (service.description && service.description.toLowerCase().includes(serviceSearchTerm.toLowerCase()))
+                        ).length === 0 && serviceSearchTerm && (
+                          <div className="text-center py-4 text-sm text-gray-500">
+                            No services found matching "{serviceSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-blue-700 mt-2">
+                        {serviceSearchTerm ? (
+                          <>
+                            Showing {userServiceAccess.filter(service => 
+                              service.name.toLowerCase().includes(serviceSearchTerm.toLowerCase()) ||
+                              (service.description && service.description.toLowerCase().includes(serviceSearchTerm.toLowerCase()))
+                            ).length} of {userServiceAccess.length} service{userServiceAccess.length !== 1 ? 's' : ''}
+                          </>
+                        ) : (
+                          <>
+                            Total: {userServiceAccess.length} service{userServiceAccess.length !== 1 ? 's' : ''}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Whitelist URLs (Optional)
+                  </label>
+                  <p className="text-xs text-gray-600 mb-2">
+                    Restrict API key usage to specific source URLs. Leave empty to allow from any origin.
+                  </p>
+                  {whitelistUrls.map((url, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={url}
+                        onChange={(e) => {
+                          const updated = [...whitelistUrls]
+                          updated[index] = e.target.value
+                          setWhitelistUrls(updated)
+                        }}
+                        placeholder="https://example.com"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                      />
+                      {whitelistUrls.length > 1 && (
+                        <button
+                          onClick={() => setWhitelistUrls(whitelistUrls.filter((_, i) => i !== index))}
+                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setWhitelistUrls([...whitelistUrls, ''])}
+                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add URL
+                  </button>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleGenerateApiKey}
+                    disabled={isGeneratingKey || !newKeyName.trim() || userServiceAccess.length === 0}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingKey ? 'Generating...' : 'Generate API Key'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowGenerateKeyModal(false)
+                      setNewKeyName('')
+                      setSelectedServiceIds([])
+                      setWhitelistUrls([''])
+                      setServiceSearchTerm('')
+                    }}
+                    className="px-4 py-2 border border-gray-300 text-black rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

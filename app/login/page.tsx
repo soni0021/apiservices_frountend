@@ -34,9 +34,9 @@ export default function LoginPage() {
 
       // Store tokens
       try {
-        localStorage.setItem('access_token', response.data.access_token)
-        localStorage.setItem('refresh_token', response.data.refresh_token)
-        localStorage.setItem('user', JSON.stringify(response.data.user))
+      localStorage.setItem('access_token', response.data.access_token)
+      localStorage.setItem('refresh_token', response.data.refresh_token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
       } catch (storageError) {
         console.error('localStorage error:', storageError)
         throw new Error('Failed to save login information. Please check your browser settings.')
@@ -56,7 +56,21 @@ export default function LoginPage() {
       
       if (err.response) {
         // Server responded with error
-        errorMessage = err.response.data?.detail || err.response.data?.message || errorMessage
+        const detail = err.response.data?.detail
+        const message = err.response.data?.message
+        
+        if (Array.isArray(detail)) {
+          // FastAPI validation errors - format them nicely
+          errorMessage = detail.map((error: any) => {
+            const field = error.loc?.join('.') || 'field'
+            const msg = error.msg || 'Invalid value'
+            return `${field}: ${msg}`
+          }).join(', ')
+        } else if (typeof detail === 'string') {
+          errorMessage = detail
+        } else if (message) {
+          errorMessage = message
+        }
       } else if (err.request) {
         // Request made but no response
         errorMessage = 'Unable to connect to server. Please check your internet connection and try again.'
@@ -71,12 +85,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4 py-8">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-            <p className="text-gray-600">Sign in to your account</p>
+        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+            <p className="text-sm sm:text-base text-gray-600">Sign in to your account</p>
           </div>
 
           {error && (
