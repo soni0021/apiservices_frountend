@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check, Menu, X } from 'lucide-react'
+import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check, Menu, X, Copy } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 import SearchableSelect from '../components/SearchableSelect'
 import SearchableMultiSelect from '../components/SearchableMultiSelect'
@@ -116,6 +116,31 @@ export default function AdminDashboard() {
   const [isLoadingServiceAccess, setIsLoadingServiceAccess] = useState(false)
   const [isGrantingAccess, setIsGrantingAccess] = useState(false)
   const [selectedServicesForGrant, setSelectedServicesForGrant] = useState<string[]>([])
+  
+  // User Management state
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [togglingStatusUserId, setTogglingStatusUserId] = useState<string | null>(null)
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false)
+  const [newUserCredentials, setNewUserCredentials] = useState<{email: string, password: string} | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [newUserFormData, setNewUserFormData] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    phone: '',
+    customer_name: '',
+    phone_number: '',
+    website_link: '',
+    address: '',
+    gst_number: '',
+    msme_certificate: '',
+    aadhar_number: '',
+    pan_number: '',
+    birthday: '',
+    about_me: ''
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -491,6 +516,137 @@ export default function AdminDashboard() {
       alert(err.response?.data?.detail || 'Failed to revoke service access')
     }
   }
+  
+  const handleCreateUser = async () => {
+    if (!newUserFormData.email || !newUserFormData.password || !newUserFormData.full_name || 
+        !newUserFormData.customer_name || !newUserFormData.phone_number || !newUserFormData.address) {
+      alert('Please fill in all required fields')
+      return
+    }
+    
+    if (newUserFormData.password.length < 6) {
+      alert('Password must be at least 6 characters long')
+      return
+    }
+    
+    setIsCreatingUser(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.post(
+        `${apiUrl}/api/v1/admin/users`,
+        newUserFormData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      // Store credentials to show in modal
+      setNewUserCredentials({
+        email: response.data.email,
+        password: newUserFormData.password
+      })
+      
+      // Reset form and close add user modal
+      setNewUserFormData({
+        email: '',
+        password: '',
+        full_name: '',
+        phone: '',
+        customer_name: '',
+        phone_number: '',
+        website_link: '',
+        address: '',
+        gst_number: '',
+        msme_certificate: '',
+        aadhar_number: '',
+        pan_number: '',
+        birthday: '',
+        about_me: ''
+      })
+      setShowAddUserModal(false)
+      
+      // Show credentials modal
+      setShowCredentialsModal(true)
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to create user')
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
+  
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user "${userEmail}"? This action cannot be undone and will delete all associated data.`)) {
+      return
+    }
+    
+    setDeletingUserId(userId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.delete(
+        `${apiUrl}/api/v1/admin/users/${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert('User deleted successfully!')
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to delete user')
+    } finally {
+      setDeletingUserId(null)
+    }
+  }
+  
+  const handleToggleUserStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    const action = newStatus === 'active' ? 'activate' : 'deactivate'
+    
+    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+      return
+    }
+    
+    setTogglingStatusUserId(userId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.put(
+        `${apiUrl}/api/v1/admin/users/${userId}/status`,
+        { status: newStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`User ${action}d successfully!`)
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || `Failed to ${action} user`)
+    } finally {
+      setTogglingStatusUserId(null)
+    }
+  }
 
   const createSubscription = async () => {
     if (!selectedUserId || !selectedServiceId || !subscriptionCredits) {
@@ -810,6 +966,13 @@ export default function AdminDashboard() {
                       className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
+                  <button
+                    onClick={() => setShowAddUserModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add User
+                  </button>
                 </div>
               </div>
             </div>
@@ -823,12 +986,13 @@ export default function AdminDashboard() {
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Calls</th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No users found</td>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No users found</td>
                     </tr>
                   ) : (
                     filteredUsers.map((u) => (
@@ -854,6 +1018,42 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           {new Date(u.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleToggleUserStatus(u.id, u.status)}
+                              disabled={togglingStatusUserId === u.id || u.role === 'admin'}
+                              className={`px-2 py-1 text-xs rounded ${
+                                u.status === 'active'
+                                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              title={u.status === 'active' ? 'Deactivate user' : 'Activate user'}
+                            >
+                              {togglingStatusUserId === u.id ? (
+                                <Loader className="w-3 h-3 animate-spin" />
+                              ) : u.status === 'active' ? (
+                                'Deactivate'
+                              ) : (
+                                'Activate'
+                              )}
+                            </button>
+                            {u.role !== 'admin' && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.email)}
+                                disabled={deletingUserId === u.id}
+                                className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Delete user"
+                              >
+                                {deletingUserId === u.id ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3 h-3" />
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1584,6 +1784,426 @@ export default function AdminDashboard() {
           </div>
         )}
       </main>
+
+      {/* Add User Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">Add New User</h2>
+                <button
+                  onClick={() => {
+                    setShowAddUserModal(false)
+                    setNewUserFormData({
+                      email: '',
+                      password: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900 mb-2">
+                  <strong>Note:</strong> After creating the user, you'll receive their credentials. Share the email and password with the user. They can change their password after first login.
+                </p>
+                <p className="text-sm text-blue-900">
+                  <strong>Important:</strong> New users are created as <strong>INACTIVE</strong> by default. You must activate them manually, or they will be automatically activated when payment is received (when you allocate credits with payment amount).
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newUserFormData.full_name}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, full_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newUserFormData.email}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newUserFormData.password}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, password: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                />
+                <p className="text-xs text-gray-500 mt-1">This will be the initial password. User can change it after login.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  value={newUserFormData.phone}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="+1234567890"
+                />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserFormData.customer_name}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, customer_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Company/Organization Name"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={newUserFormData.phone_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, phone_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="+91 9876543210"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website Link
+                  </label>
+                  <input
+                    type="url"
+                    value={newUserFormData.website_link}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, website_link: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="https://example.com"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    value={newUserFormData.address}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, address: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Complete address"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    GST Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.gst_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, gst_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="GST Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    MSME Certificate
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.msme_certificate}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, msme_certificate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="MSME Certificate Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Aadhaar Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.aadhar_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, aadhar_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Aadhaar Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    PAN Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.pan_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, pan_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="PAN Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Birthday
+                  </label>
+                  <input
+                    type="date"
+                    value={newUserFormData.birthday}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, birthday: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    About Me
+                  </label>
+                  <textarea
+                    value={newUserFormData.about_me}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, about_me: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Additional information"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleCreateUser}
+                  disabled={isCreatingUser}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isCreatingUser ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create User'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddUserModal(false)
+                    setNewUserFormData({
+                      email: '',
+                      password: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Credentials Modal */}
+      {showCredentialsModal && newUserCredentials && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">User Created Successfully</h2>
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false)
+                    setNewUserCredentials(null)
+                    setCopiedField(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-900">
+                  <strong>Important:</strong> The user account is <strong>INACTIVE</strong>. You can activate it manually from the Users tab, or it will be automatically activated when payment is received (when allocating credits with payment amount).
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newUserCredentials.email}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newUserCredentials.email)
+                        setCopiedField('email')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      title="Copy Email"
+                    >
+                      {copiedField === 'email' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newUserCredentials.password}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newUserCredentials.password)
+                        setCopiedField('password')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      title="Copy Password"
+                    >
+                      {copiedField === 'password' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      const credentials = `Email: ${newUserCredentials.email}\nPassword: ${newUserCredentials.password}`
+                      navigator.clipboard.writeText(credentials)
+                      setCopiedField('both')
+                      setTimeout(() => setCopiedField(null), 2000)
+                    }}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    {copiedField === 'both' ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Both Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copy Both (Email & Password)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900">
+                  <strong>Note:</strong> Please share these credentials with the user. They can change their password after first login.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false)
+                  setNewUserCredentials(null)
+                  setCopiedField(null)
+                }}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

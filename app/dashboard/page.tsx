@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import apiClient from '../../lib/axios'
-import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap, Loader, Menu, Search } from 'lucide-react'
+import { Key, Activity, Copy, Check, X, Plus, Trash2, LogOut, ShoppingCart, CreditCard, Package, Zap, Loader, Menu, Search, Settings } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 
 interface ApiKey {
@@ -87,6 +87,13 @@ export default function ClientDashboard() {
   const [userServiceAccess, setUserServiceAccess] = useState<Service[]>([])
   const [isGeneratingKey, setIsGeneratingKey] = useState(false)
   const [serviceSearchTerm, setServiceSearchTerm] = useState('')
+  
+  // Password Change State
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -328,6 +335,43 @@ export default function ClientDashboard() {
     router.push('/login')
   }
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert('Please fill in all fields')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      alert('New password must be at least 6 characters long')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert('New password and confirm password do not match')
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      await apiClient.put('/api/v1/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      })
+
+      alert('Password changed successfully!')
+      
+      // Reset form and close modal
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowPasswordChangeModal(false)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to change password')
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'marketplace') {
       fetchServices()
@@ -361,6 +405,14 @@ export default function ClientDashboard() {
               </div>
             )}
             <span className="text-xs sm:text-sm text-black truncate max-w-[100px] sm:max-w-none">{user?.email}</span>
+            <button
+              onClick={() => setShowPasswordChangeModal(true)}
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-black hover:text-black text-sm sm:text-base"
+              title="Change Password"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-black hover:text-black text-sm sm:text-base"
@@ -831,6 +883,100 @@ export default function ClientDashboard() {
                       setSelectedServiceIds([])
                       setWhitelistUrls([''])
                       setServiceSearchTerm('')
+                    }}
+                    className="px-4 py-2 border border-gray-300 text-black rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordChangeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-4 sm:p-6 border-b">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-bold text-black">Change Password</h2>
+                  <button
+                    onClick={() => {
+                      setShowPasswordChangeModal(false)
+                      setCurrentPassword('')
+                      setNewPassword('')
+                      setConfirmPassword('')
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Current Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    New Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                    placeholder="Enter new password (min 6 characters)"
+                    minLength={6}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Confirm New Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                    placeholder="Confirm new password"
+                    minLength={6}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isChangingPassword ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Changing...
+                      </>
+                    ) : (
+                      'Change Password'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPasswordChangeModal(false)
+                      setCurrentPassword('')
+                      setNewPassword('')
+                      setConfirmPassword('')
                     }}
                     className="px-4 py-2 border border-gray-300 text-black rounded-lg hover:bg-gray-50"
                   >
