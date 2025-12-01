@@ -59,6 +59,7 @@ interface Service {
   description: string
   price_per_call: number
   is_active: boolean
+  endpoint_path?: string
   category?: Category
 }
 
