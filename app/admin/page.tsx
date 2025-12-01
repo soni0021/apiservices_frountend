@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check, Menu, X } from 'lucide-react'
+import { Users, Activity, TrendingUp, LogOut, Search, Package, ShoppingCart, CreditCard, Plus, Edit, Trash2, Zap, Loader, Key, Check, Menu, X, Copy } from 'lucide-react'
 import ApiTester from '../components/ApiTester'
 import SearchableSelect from '../components/SearchableSelect'
 import SearchableMultiSelect from '../components/SearchableMultiSelect'
@@ -90,6 +90,21 @@ export default function AdminDashboard() {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
   const [isLoadingCredits, setIsLoadingCredits] = useState(false)
   
+  // Marketplace CRUD state
+  const [showIndustryModal, setShowIndustryModal] = useState(false)
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showServiceModal, setShowServiceModal] = useState(false)
+  const [editingIndustry, setEditingIndustry] = useState<Industry | null>(null)
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editingService, setEditingService] = useState<Service | null>(null)
+  const [isSavingMarketplace, setIsSavingMarketplace] = useState(false)
+  const [industryFormData, setIndustryFormData] = useState({ name: '', slug: '', description: '', is_active: true })
+  const [categoryFormData, setCategoryFormData] = useState({ name: '', slug: '', description: '', is_active: true })
+  const [serviceFormData, setServiceFormData] = useState({ 
+    name: '', slug: '', description: '', category_id: '', endpoint_path: '', 
+    price_per_call: '1.0', is_active: true, industry_ids: [] as string[]
+  })
+  
   // Credit allocation form state
   const [creditAllocationUserId, setCreditAllocationUserId] = useState('')
   const [creditAllocationSearch, setCreditAllocationSearch] = useState('')
@@ -110,37 +125,90 @@ export default function AdminDashboard() {
   // Transactions state
   const [transactions, setTransactions] = useState<any[]>([])
   
-  // API Key Generation state
-  const [showGenerateApiKey, setShowGenerateApiKey] = useState(false)
-  const [apiKeyUserId, setApiKeyUserId] = useState('')
-  const [apiKeyUserSearch, setApiKeyUserSearch] = useState('')
-  const [apiKeyName, setApiKeyName] = useState('')
-  const [apiKeyServiceIds, setApiKeyServiceIds] = useState<string[]>([])
-  const [apiKeyWhitelistUrls, setApiKeyWhitelistUrls] = useState<string[]>([''])
-  const [apiKeyAllServices, setApiKeyAllServices] = useState(false)
-  const [isGeneratingApiKey, setIsGeneratingApiKey] = useState(false)
-  const [generatedApiKey, setGeneratedApiKey] = useState<any>(null)
-  const [userApiKeys, setUserApiKeys] = useState<Record<string, any[]>>({})
-  const [isLoadingUserApiKeys, setIsLoadingUserApiKeys] = useState(false)
+  // Service Access Management state
+  const [selectedUserForAccess, setSelectedUserForAccess] = useState('')
+  const [userServiceAccess, setUserServiceAccess] = useState<Record<string, any[]>>({})
+  const [isLoadingServiceAccess, setIsLoadingServiceAccess] = useState(false)
+  const [isGrantingAccess, setIsGrantingAccess] = useState(false)
+  const [selectedServicesForGrant, setSelectedServicesForGrant] = useState<string[]>([])
+  
+  // User Management state
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [togglingStatusUserId, setTogglingStatusUserId] = useState<string | null>(null)
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false)
+  const [newUserCredentials, setNewUserCredentials] = useState<{email: string, password: string} | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showEditUserModal, setShowEditUserModal] = useState(false)
+  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false)
+  const [isLoadingUserData, setIsLoadingUserData] = useState(false)
+  const [editUserFormData, setEditUserFormData] = useState({
+    email: '',
+    full_name: '',
+    phone: '',
+    customer_name: '',
+    phone_number: '',
+    website_link: '',
+    address: '',
+    gst_number: '',
+    msme_certificate: '',
+    aadhar_number: '',
+    pan_number: '',
+    birthday: '',
+    about_me: ''
+  })
+  const [newUserFormData, setNewUserFormData] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    phone: '',
+    customer_name: '',
+    phone_number: '',
+    website_link: '',
+    address: '',
+    gst_number: '',
+    msme_certificate: '',
+    aadhar_number: '',
+    pan_number: '',
+    birthday: '',
+    about_me: ''
+  })
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token')
-    const userData = localStorage.getItem('user')
+    const checkAuth = async () => {
+      const token = localStorage.getItem('access_token')
+      const userData = localStorage.getItem('user')
 
-    if (!token || !userData) {
-      router.push('/login')
-      return
+      if (!token || !userData) {
+        router.push('/login')
+        return
+      }
+
+      try {
+        const parsedUser = JSON.parse(userData)
+        if (parsedUser.role !== 'admin') {
+          router.push('/dashboard')
+          return
+        }
+
+        setUser(parsedUser)
+        await fetchData(token)
+        setupWebSocket(token)
+      } catch (err) {
+        console.error('Failed to load initial data:', err)
+        // If there's an error, redirect to login
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user')
+        router.push('/login')
+      } finally {
+        setLoading(false)
+      }
     }
-
-    const parsedUser = JSON.parse(userData)
-    if (parsedUser.role !== 'admin') {
-      router.push('/dashboard')
-      return
-    }
-
-    setUser(parsedUser)
-    fetchData(token)
-    setupWebSocket(token)
+    
+    checkAuth()
   }, [])
 
   const setupWebSocket = (token: string) => {
@@ -246,8 +314,180 @@ export default function AdminDashboard() {
       setServices(servicesRes.data)
     } catch (err) {
       console.error('Failed to fetch marketplace data:', err)
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to load marketplace: ${errorMessage}`)
     } finally {
       setIsLoadingMarketplace(false)
+    }
+  }
+  
+  // Marketplace CRUD functions
+  const handleSaveIndustry = async () => {
+    if (!industryFormData.name || !industryFormData.slug) {
+      alert('Name and slug are required')
+      return
+    }
+    
+    setIsSavingMarketplace(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      if (editingIndustry) {
+        await axios.put(`${apiUrl}/api/v1/admin/industries/${editingIndustry.id}`, industryFormData, { headers })
+        alert('Industry updated successfully!')
+      } else {
+        await axios.post(`${apiUrl}/api/v1/admin/industries`, industryFormData, { headers })
+        alert('Industry created successfully!')
+      }
+      
+      setShowIndustryModal(false)
+      setEditingIndustry(null)
+      setIndustryFormData({ name: '', slug: '', description: '', is_active: true })
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to save industry: ${errorMessage}`)
+    } finally {
+      setIsSavingMarketplace(false)
+    }
+  }
+  
+  const handleDeleteIndustry = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this industry?')) return
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      await axios.delete(`${apiUrl}/api/v1/admin/industries/${id}`, { headers })
+      alert('Industry deleted successfully!')
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to delete industry: ${errorMessage}`)
+    }
+  }
+  
+  const handleSaveCategory = async () => {
+    if (!categoryFormData.name || !categoryFormData.slug) {
+      alert('Name and slug are required')
+      return
+    }
+    
+    setIsSavingMarketplace(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      if (editingCategory) {
+        await axios.put(`${apiUrl}/api/v1/admin/categories/${editingCategory.id}`, categoryFormData, { headers })
+        alert('Category updated successfully!')
+      } else {
+        await axios.post(`${apiUrl}/api/v1/admin/categories`, categoryFormData, { headers })
+        alert('Category created successfully!')
+      }
+      
+      setShowCategoryModal(false)
+      setEditingCategory(null)
+      setCategoryFormData({ name: '', slug: '', description: '', is_active: true })
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to save category: ${errorMessage}`)
+    } finally {
+      setIsSavingMarketplace(false)
+    }
+  }
+  
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this category?')) return
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      await axios.delete(`${apiUrl}/api/v1/admin/categories/${id}`, { headers })
+      alert('Category deleted successfully!')
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to delete category: ${errorMessage}`)
+    }
+  }
+  
+  const handleSaveService = async () => {
+    if (!serviceFormData.name || !serviceFormData.slug || !serviceFormData.endpoint_path) {
+      alert('Name, slug, and endpoint path are required')
+      return
+    }
+    
+    setIsSavingMarketplace(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      const payload = {
+        ...serviceFormData,
+        price_per_call: parseFloat(serviceFormData.price_per_call) || 1.0,
+        category_id: serviceFormData.category_id || null,
+        industry_ids: serviceFormData.industry_ids || []
+      }
+      
+      if (editingService) {
+        await axios.put(`${apiUrl}/api/v1/admin/services/${editingService.id}`, payload, { headers })
+        alert('Service updated successfully!')
+      } else {
+        await axios.post(`${apiUrl}/api/v1/admin/services`, payload, { headers })
+        alert('Service created successfully!')
+      }
+      
+      setShowServiceModal(false)
+      setEditingService(null)
+      setServiceFormData({ 
+        name: '', slug: '', description: '', category_id: '', endpoint_path: '', 
+        price_per_call: '1.0', is_active: true, industry_ids: []
+      })
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to save service: ${errorMessage}`)
+    } finally {
+      setIsSavingMarketplace(false)
+    }
+  }
+  
+  const handleDeleteService = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this service?')) return
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      await axios.delete(`${apiUrl}/api/v1/admin/services/${id}`, { headers })
+      alert('Service deleted successfully!')
+      fetchMarketplace()
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to delete service: ${errorMessage}`)
     }
   }
 
@@ -262,8 +502,10 @@ export default function AdminDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       })
       setSubscriptions(response.data)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch subscriptions:', err)
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to load subscriptions: ${errorMessage}`)
     } finally {
       setIsLoadingSubscriptions(false)
     }
@@ -280,8 +522,10 @@ export default function AdminDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       })
       setTransactions(response.data)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch transactions:', err)
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to load transactions: ${errorMessage}`)
       setTransactions([])
     } finally {
       setIsLoadingTransactions(false)
@@ -326,7 +570,8 @@ export default function AdminDashboard() {
         fetchUserCreditInfo()
       }
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to allocate credits')
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to allocate credits: ${errorMessage}`)
     } finally {
       setIsAllocatingCredits(false)
     }
@@ -365,7 +610,8 @@ export default function AdminDashboard() {
         fetchUserCreditInfo()
       }
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to update pricing')
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to update pricing: ${errorMessage}`)
     } finally {
       setIsUpdatingPricing(false)
     }
@@ -402,67 +648,423 @@ export default function AdminDashboard() {
     }
   }
   
-  const fetchUserApiKeys = async (userId: string) => {
-    setIsLoadingUserApiKeys(true)
+  const fetchUserServiceAccess = async (userId: string) => {
+    setIsLoadingServiceAccess(true)
     try {
       const token = localStorage.getItem('access_token')
       const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:8000'
         : 'https://apiservices-backend.onrender.com'
-      const response = await axios.get(`${apiUrl}/api/v1/admin/users/${userId}/api-keys`, {
+      const response = await axios.get(`${apiUrl}/api/v1/admin/users/${userId}/service-access`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      setUserApiKeys({ ...userApiKeys, [userId]: response.data })
+      setUserServiceAccess({ ...userServiceAccess, [userId]: response.data })
     } catch (err) {
-      console.error('Failed to fetch user API keys:', err)
-      setUserApiKeys({ ...userApiKeys, [userId]: [] })
+      console.error('Failed to fetch user service access:', err)
+      setUserServiceAccess({ ...userServiceAccess, [userId]: [] })
     } finally {
-      setIsLoadingUserApiKeys(false)
+      setIsLoadingServiceAccess(false)
     }
   }
   
-  const handleGenerateApiKey = async () => {
-    if (!apiKeyUserId || !apiKeyName.trim() || (!apiKeyAllServices && apiKeyServiceIds.length === 0)) {
-      alert('Please fill all required fields')
+  const handleGrantServiceAccess = async () => {
+    if (!selectedUserForAccess || selectedServicesForGrant.length === 0) {
+      alert('Please select a user and at least one service')
       return
     }
     
-    setIsGeneratingApiKey(true)
+    setIsGrantingAccess(true)
     try {
       const token = localStorage.getItem('access_token')
       const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:8000'
         : 'https://apiservices-backend.onrender.com'
       
-      const whitelistUrls = apiKeyWhitelistUrls.filter(url => url.trim() !== '')
+      const headers = { Authorization: `Bearer ${token}` }
+      
+      // Grant access to all selected services
+      const grantPromises = selectedServicesForGrant.map(serviceId =>
+        axios.post(
+          `${apiUrl}/api/v1/admin/users/${selectedUserForAccess}/service-access`,
+          { service_id: serviceId },
+          { headers }
+        ).catch(err => {
+          // Return error info instead of throwing
+          return { error: err.response?.data?.detail || 'Failed to grant access', serviceId } as any
+        })
+      )
+      
+      const results = await Promise.all(grantPromises)
+      
+      // Check for errors
+      const errors = results.filter((r: any) => r.error)
+      const successes = results.filter((r: any) => !r.error)
+      
+      // Refresh service access list
+      await fetchUserServiceAccess(selectedUserForAccess)
+      
+      // Reset service selection
+      setSelectedServicesForGrant([])
+      
+      if (errors.length > 0) {
+        const errorMessages = errors.map(e => `Service ${e.serviceId}: ${e.error}`).join('\n')
+        alert(`Granted access to ${successes.length} service(s). Errors:\n${errorMessages}`)
+      } else {
+        alert(`Successfully granted access to ${successes.length} service(s)!`)
+      }
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to grant service access: ${errorMessage}`)
+    } finally {
+      setIsGrantingAccess(false)
+    }
+  }
+  
+  const handleRevokeServiceAccess = async (userId: string, serviceId: string) => {
+    if (!confirm('Are you sure you want to revoke this service access?')) return
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.delete(
+        `${apiUrl}/api/v1/admin/users/${userId}/service-access/${serviceId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+      
+      // Refresh service access list
+      await fetchUserServiceAccess(userId)
+      
+      alert('Service access revoked successfully!')
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to revoke service access: ${errorMessage}`)
+    }
+  }
+  
+  // Helper function to format error messages
+  const formatErrorMessage = (error: any): string => {
+    if (!error) return 'An unexpected error occurred'
+    
+    // Handle axios error response
+    if (error.response?.data) {
+      const data = error.response.data
+      
+      // Handle FastAPI validation errors
+      if (Array.isArray(data.detail)) {
+        return data.detail.map((err: any) => {
+          const field = err.loc?.join('.') || 'field'
+          const msg = err.msg || 'Invalid value'
+          return `${field}: ${msg}`
+        }).join(', ')
+      }
+      
+      // Handle string error messages
+      if (typeof data.detail === 'string') {
+        return data.detail
+      }
+      
+      // Handle object error messages
+      if (typeof data.detail === 'object') {
+        try {
+          return JSON.stringify(data.detail)
+        } catch {
+          return 'Invalid data provided'
+        }
+      }
+      
+      // Handle message field
+      if (data.message) {
+        return data.message
+      }
+    }
+    
+    // Handle request errors
+    if (error.request) {
+      return 'Unable to connect to server. Please check your internet connection.'
+    }
+    
+    // Handle other errors
+    if (error.message) {
+      return error.message
+    }
+    
+    return 'Failed to create user. Please try again.'
+  }
+
+  const handleCreateUser = async () => {
+    // Only email and password are required
+    if (!newUserFormData.email || !newUserFormData.password) {
+      alert('Email and password are required')
+      return
+    }
+    
+    if (newUserFormData.password.length < 6) {
+      alert('Password must be at least 6 characters long')
+      return
+    }
+    
+    setIsCreatingUser(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      // Only send fields that have values
+      const payload: any = {
+        email: newUserFormData.email,
+        password: newUserFormData.password
+      }
+      
+      if (newUserFormData.full_name) payload.full_name = newUserFormData.full_name
+      if (newUserFormData.phone) payload.phone = newUserFormData.phone
+      if (newUserFormData.customer_name) payload.customer_name = newUserFormData.customer_name
+      if (newUserFormData.phone_number) payload.phone_number = newUserFormData.phone_number
+      if (newUserFormData.website_link) payload.website_link = newUserFormData.website_link
+      if (newUserFormData.address) payload.address = newUserFormData.address
+      if (newUserFormData.gst_number) payload.gst_number = newUserFormData.gst_number
+      if (newUserFormData.msme_certificate) payload.msme_certificate = newUserFormData.msme_certificate
+      if (newUserFormData.aadhar_number) payload.aadhar_number = newUserFormData.aadhar_number
+      if (newUserFormData.pan_number) payload.pan_number = newUserFormData.pan_number
+      if (newUserFormData.birthday) payload.birthday = newUserFormData.birthday
+      if (newUserFormData.about_me) payload.about_me = newUserFormData.about_me
       
       const response = await axios.post(
-        `${apiUrl}/api/v1/admin/api-keys/generate`,
-        {
-          user_id: apiKeyUserId,
-          service_ids: apiKeyAllServices ? ['*'] : apiKeyServiceIds,
-          name: apiKeyName,
-          whitelist_urls: whitelistUrls.length > 0 ? whitelistUrls : null
-        },
+        `${apiUrl}/api/v1/admin/users`,
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       
-      setGeneratedApiKey(response.data)
+      // Store credentials to show in modal
+      setNewUserCredentials({
+        email: response.data.email,
+        password: newUserFormData.password
+      })
       
-      // Refresh user's API keys list
-      await fetchUserApiKeys(apiKeyUserId)
+      // Reset form and close add user modal
+      setNewUserFormData({
+        email: '',
+        password: '',
+        full_name: '',
+        phone: '',
+        customer_name: '',
+        phone_number: '',
+        website_link: '',
+        address: '',
+        gst_number: '',
+        msme_certificate: '',
+        aadhar_number: '',
+        pan_number: '',
+        birthday: '',
+        about_me: ''
+      })
+      setShowAddUserModal(false)
       
-      // Reset form (but keep user selected)
-      setApiKeyName('')
-      setApiKeyServiceIds([])
-      setApiKeyWhitelistUrls([''])
-      setApiKeyAllServices(false)
+      // Show credentials modal
+      setShowCredentialsModal(true)
       
-      alert('API key generated successfully! Please save it now - it will only be shown once.')
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to generate API key')
+      const errorMessage = formatErrorMessage(err)
+      alert(errorMessage)
     } finally {
-      setIsGeneratingApiKey(false)
+      setIsCreatingUser(false)
+    }
+  }
+  
+  const handleEditUser = async (userId: string) => {
+    setIsLoadingUserData(true)
+    setEditingUserId(userId)
+    setShowEditUserModal(true)
+    
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      const response = await axios.get(
+        `${apiUrl}/api/v1/admin/users/${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      const userData = response.data
+      // Format birthday if it exists (convert from date string to YYYY-MM-DD format)
+      let formattedBirthday = ''
+      if (userData.birthday) {
+        const date = new Date(userData.birthday)
+        if (!isNaN(date.getTime())) {
+          formattedBirthday = date.toISOString().split('T')[0]
+        }
+      }
+      
+      setEditUserFormData({
+        email: userData.email || '',
+        full_name: userData.full_name || '',
+        phone: userData.phone || '',
+        customer_name: userData.customer_name || '',
+        phone_number: userData.phone_number || '',
+        website_link: userData.website_link || '',
+        address: userData.address || '',
+        gst_number: userData.gst_number || '',
+        msme_certificate: userData.msme_certificate || '',
+        aadhar_number: userData.aadhar_number || '',
+        pan_number: userData.pan_number || '',
+        birthday: formattedBirthday,
+        about_me: userData.about_me || ''
+      })
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to load user data: ${errorMessage}`)
+      setShowEditUserModal(false)
+      setEditingUserId(null)
+    } finally {
+      setIsLoadingUserData(false)
+    }
+  }
+  
+  const handleUpdateUser = async () => {
+    if (!editingUserId) return
+    
+    setIsUpdatingUser(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      // Only send fields that have values
+      const payload: any = {}
+      
+      if (editUserFormData.email) payload.email = editUserFormData.email
+      if (editUserFormData.full_name) payload.full_name = editUserFormData.full_name
+      if (editUserFormData.phone) payload.phone = editUserFormData.phone
+      if (editUserFormData.customer_name) payload.customer_name = editUserFormData.customer_name
+      if (editUserFormData.phone_number) payload.phone_number = editUserFormData.phone_number
+      if (editUserFormData.website_link) payload.website_link = editUserFormData.website_link
+      if (editUserFormData.address) payload.address = editUserFormData.address
+      if (editUserFormData.gst_number) payload.gst_number = editUserFormData.gst_number
+      if (editUserFormData.msme_certificate) payload.msme_certificate = editUserFormData.msme_certificate
+      if (editUserFormData.aadhar_number) payload.aadhar_number = editUserFormData.aadhar_number
+      if (editUserFormData.pan_number) payload.pan_number = editUserFormData.pan_number
+      if (editUserFormData.birthday) payload.birthday = editUserFormData.birthday
+      if (editUserFormData.about_me) payload.about_me = editUserFormData.about_me
+      
+      await axios.put(
+        `${apiUrl}/api/v1/admin/users/${editingUserId}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert('User updated successfully!')
+      
+      // Reset form and close modal
+      setEditUserFormData({
+        email: '',
+        full_name: '',
+        phone: '',
+        customer_name: '',
+        phone_number: '',
+        website_link: '',
+        address: '',
+        gst_number: '',
+        msme_certificate: '',
+        aadhar_number: '',
+        pan_number: '',
+        birthday: '',
+        about_me: ''
+      })
+      setEditingUserId(null)
+      setIsLoadingUserData(false)
+      setShowEditUserModal(false)
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to update user: ${errorMessage}`)
+    } finally {
+      setIsUpdatingUser(false)
+    }
+  }
+  
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user "${userEmail}"? This action cannot be undone and will delete all associated data.`)) {
+      return
+    }
+    
+    setDeletingUserId(userId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.delete(
+        `${apiUrl}/api/v1/admin/users/${userId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert('User deleted successfully!')
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to delete user: ${errorMessage}`)
+    } finally {
+      setDeletingUserId(null)
+    }
+  }
+  
+  const handleToggleUserStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    const action = newStatus === 'active' ? 'activate' : 'deactivate'
+    
+    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+      return
+    }
+    
+    setTogglingStatusUserId(userId)
+    try {
+      const token = localStorage.getItem('access_token')
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : 'https://apiservices-backend.onrender.com'
+      
+      await axios.put(
+        `${apiUrl}/api/v1/admin/users/${userId}/status`,
+        { status: newStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      
+      alert(`User ${action}d successfully!`)
+      
+      // Refresh users list
+      const userToken = localStorage.getItem('access_token')
+      if (userToken) {
+        fetchData(userToken)
+      }
+    } catch (err: any) {
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to ${action} user: ${errorMessage}`)
+    } finally {
+      setTogglingStatusUserId(null)
     }
   }
 
@@ -493,7 +1095,8 @@ export default function AdminDashboard() {
       setSubscriptionCredits('100')
       fetchSubscriptions()
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create subscription')
+      const errorMessage = formatErrorMessage(err)
+      alert(`Failed to create subscription: ${errorMessage}`)
     }
   }
 
@@ -510,7 +1113,16 @@ export default function AdminDashboard() {
     } else if (activeTab === 'credits') {
       fetchUserCreditInfo()
     } else if (activeTab === 'api-keys') {
-      if (services.length === 0) fetchMarketplace()
+      // Always fetch services and users when API Keys tab is active
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        // Always fetch services for this tab
+        fetchMarketplace()
+        // Ensure users are loaded
+        if (users.length === 0) {
+          fetchData(token)
+        }
+      }
     }
   }, [activeTab, users])
 
@@ -524,10 +1136,13 @@ export default function AdminDashboard() {
     router.push('/login')
   }
 
-  const filteredUsers = users.filter(u =>
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filter out admin users and apply search filter
+  const filteredUsers = users
+    .filter(u => u.role !== 'admin') // Hide admin users
+    .filter(u =>
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
   if (loading) {
     return (
@@ -657,6 +1272,7 @@ export default function AdminDashboard() {
             <button
               onClick={() => {
                 setActiveTab('api-keys')
+                if (services.length === 0) fetchMarketplace()
                 setMobileMenuOpen(false)
               }}
               className={`px-3 sm:px-6 py-3 font-medium whitespace-nowrap text-sm sm:text-base ${
@@ -691,14 +1307,17 @@ export default function AdminDashboard() {
             {/* Real-time Stats */}
             {realtimeStats && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-                <div className="bg-white rounded-lg shadow p-6">
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
+                >
                   <div className="flex items-center gap-3 mb-2">
                     <Users className="w-5 h-5 text-blue-600" />
                     <h3 className="text-sm font-medium text-gray-600">Total Users</h3>
                   </div>
                   <p className="text-3xl font-bold text-gray-900">{realtimeStats.total_users}</p>
                   <p className="text-sm text-gray-500 mt-1">{realtimeStats.active_users} active</p>
-                </div>
+                </button>
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Activity className="w-5 h-5 text-green-600" />
@@ -774,6 +1393,23 @@ export default function AdminDashboard() {
                       className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
+                  <button
+                    onClick={() => setShowAddUserModal(true)}
+                    disabled={isCreatingUser}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreatingUser ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Add User
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -787,12 +1423,13 @@ export default function AdminDashboard() {
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Calls</th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No users found</td>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No users found</td>
                     </tr>
                   ) : (
                     filteredUsers.map((u) => (
@@ -819,6 +1456,54 @@ export default function AdminDashboard() {
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           {new Date(u.created_at).toLocaleDateString()}
                         </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditUser(u.id)}
+                              disabled={isLoadingUserData && editingUserId === u.id}
+                              className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Edit user"
+                            >
+                              {isLoadingUserData && editingUserId === u.id ? (
+                                <Loader className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Edit className="w-3 h-3" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleToggleUserStatus(u.id, u.status)}
+                              disabled={togglingStatusUserId === u.id || u.role === 'admin'}
+                              className={`px-2 py-1 text-xs rounded ${
+                                u.status === 'active'
+                                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              title={u.status === 'active' ? 'Deactivate user' : 'Activate user'}
+                            >
+                              {togglingStatusUserId === u.id ? (
+                                <Loader className="w-3 h-3 animate-spin" />
+                              ) : u.status === 'active' ? (
+                                'Deactivate'
+                              ) : (
+                                'Activate'
+                              )}
+                            </button>
+                            {u.role !== 'admin' && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.email)}
+                                disabled={deletingUserId === u.id}
+                                className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Delete user"
+                              >
+                                {deletingUserId === u.id ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3 h-3" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -844,12 +1529,50 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Industries ({industries.length})</h2>
+                <button
+                  onClick={() => {
+                    setEditingIndustry(null)
+                    setIndustryFormData({ name: '', slug: '', description: '', is_active: true })
+                    setShowIndustryModal(true)
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Industry
+                </button>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {industries.map((ind) => (
                     <div key={ind.id} className="border rounded-lg p-4">
-                      <h3 className="font-semibold">{ind.name}</h3>
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold">{ind.name}</h3>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingIndustry(ind)
+                              setIndustryFormData({
+                                name: ind.name,
+                                slug: ind.slug,
+                                description: ind.description || '',
+                                is_active: ind.is_active
+                              })
+                              setShowIndustryModal(true)
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteIndustry(ind.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                       <p className="text-sm text-gray-600 mt-1">{ind.description}</p>
                       <span className={`mt-2 inline-block px-2 py-1 text-xs rounded ${
                         ind.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
@@ -866,12 +1589,50 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Categories ({categories.length})</h2>
+                <button
+                  onClick={() => {
+                    setEditingCategory(null)
+                    setCategoryFormData({ name: '', slug: '', description: '', is_active: true })
+                    setShowCategoryModal(true)
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Category
+                </button>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {categories.map((cat) => (
                     <div key={cat.id} className="border rounded-lg p-4">
-                      <h3 className="font-semibold">{cat.name}</h3>
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold">{cat.name}</h3>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingCategory(cat)
+                              setCategoryFormData({
+                                name: cat.name,
+                                slug: cat.slug,
+                                description: cat.description || '',
+                                is_active: cat.is_active
+                              })
+                              setShowCategoryModal(true)
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                       <p className="text-sm text-gray-600 mt-1">{cat.description}</p>
                     </div>
                   ))}
@@ -883,12 +1644,57 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b flex items-center justify-between">
                 <h2 className="text-xl font-bold">Services ({services.length})</h2>
+                <button
+                  onClick={() => {
+                    setEditingService(null)
+                    setServiceFormData({ 
+                      name: '', slug: '', description: '', category_id: '', endpoint_path: '', 
+                      price_per_call: '1.0', is_active: true, industry_ids: []
+                    })
+                    setShowServiceModal(true)
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Service
+                </button>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {services.map((svc) => (
                     <div key={svc.id} className="border rounded-lg p-4">
-                      <h3 className="font-semibold">{svc.name}</h3>
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold">{svc.name}</h3>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingService(svc)
+                              setServiceFormData({
+                                name: svc.name,
+                                slug: svc.slug,
+                                description: svc.description || '',
+                                category_id: svc.category?.id || '',
+                                endpoint_path: svc.endpoint_path || '',
+                                price_per_call: svc.price_per_call?.toString() || '1.0',
+                                is_active: svc.is_active,
+                                industry_ids: []
+                              })
+                              setShowServiceModal(true)
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteService(svc.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                       <p className="text-sm text-gray-600 mt-1">{svc.description}</p>
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-sm font-semibold text-blue-600">{svc.price_per_call} credit{svc.price_per_call !== 1 ? 's' : ''} per API call</span>
@@ -1331,29 +2137,28 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* API Key Management Tab */}
+        {/* Service Access Management Tab */}
         {activeTab === 'api-keys' && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b flex items-center justify-between">
-                <h2 className="text-xl font-bold">Generate API Key for User</h2>
-                <button
-                  onClick={() => {
-                    setShowGenerateApiKey(true)
-                    if (services.length === 0) fetchMarketplace()
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Generate API Key
-                </button>
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-bold">Service Access Management</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Grant or revoke service access for users. Users can then generate their own API keys for services they have access to.
+                </p>
               </div>
               
-              {showGenerateApiKey && (
-                <div className="p-3 sm:p-4 md:p-6 border-b bg-gray-50">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+              {/* Grant Service Access Form */}
+              <div className="p-3 sm:p-4 md:p-6 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold mb-4">Grant Service Access</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    {users.length === 0 ? (
+                      <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm">
+                        Loading users...
+                      </div>
+                    ) : (
                       <SearchableSelect
                         options={users
                           .filter(u => u.role === 'client')
@@ -1361,203 +2166,139 @@ export default function AdminDashboard() {
                             value: u.id,
                             label: `${u.email} - ${u.full_name || 'No name'}`
                           }))}
-                        value={apiKeyUserId}
+                        value={selectedUserForAccess}
                         onChange={(value) => {
-                          setApiKeyUserId(value)
+                          setSelectedUserForAccess(value)
                           if (value) {
-                            fetchUserApiKeys(value)
+                            fetchUserServiceAccess(value)
                           }
                         }}
                         placeholder="Select a user..."
                         searchPlaceholder="Search users by email or name..."
                       />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">API Key Name</label>
-                      <input
-                        type="text"
-                        value={apiKeyName}
-                        onChange={(e) => setApiKeyName(e.target.value)}
-                        placeholder="e.g., Production Key, Test Key"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="flex items-center gap-2 mb-2">
-                        <input
-                          type="checkbox"
-                          checked={apiKeyAllServices}
-                          onChange={(e) => {
-                            setApiKeyAllServices(e.target.checked)
-                            if (e.target.checked) {
-                              setApiKeyServiceIds(['*'])
+                    )}
+                    {users.length > 0 && users.filter(u => u.role === 'client').length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1">No client users found</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Select Services <span className="text-gray-500 text-xs">(Multiple selection allowed)</span>
+                      </label>
+                      {services.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedServicesForGrant.length === services.length) {
+                              // Deselect all
+                              setSelectedServicesForGrant([])
                             } else {
-                              setApiKeyServiceIds([])
+                              // Select all
+                              setSelectedServicesForGrant(services.map(svc => svc.id))
                             }
                           }}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm font-medium text-gray-700">Grant access to ALL services</span>
-                      </label>
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          {selectedServicesForGrant.length === services.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
                     </div>
-                    
-                    {!apiKeyAllServices && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Services</label>
+                    {services.length === 0 ? (
+                      <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm">
+                        {isLoadingMarketplace ? 'Loading services...' : 'No services available'}
+                      </div>
+                    ) : (
+                      <>
                         <SearchableMultiSelect
                           options={services.map(svc => ({
                             value: svc.id,
                             label: svc.name
                           }))}
-                          selectedValues={apiKeyServiceIds}
-                          onChange={setApiKeyServiceIds}
+                          selectedValues={selectedServicesForGrant}
+                          onChange={setSelectedServicesForGrant}
                           placeholder="Select services..."
                           searchPlaceholder="Search services..."
                         />
-                      </div>
-                    )}
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Whitelist URLs (Security) - Optional
-                      </label>
-                      <p className="text-xs text-gray-500 mb-2">
-                        Only allow API requests from these URLs. Leave empty to allow all origins.
-                      </p>
-                      {apiKeyWhitelistUrls.map((url, index) => (
-                        <div key={index} className="flex gap-2 mb-2">
-                          <input
-                            type="text"
-                            value={url}
-                            onChange={(e) => {
-                              const newUrls = [...apiKeyWhitelistUrls]
-                              newUrls[index] = e.target.value
-                              setApiKeyWhitelistUrls(newUrls)
-                            }}
-                            placeholder="https://example.com"
-                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-900"
-                          />
-                          {apiKeyWhitelistUrls.length > 1 && (
-                            <button
-                              onClick={() => {
-                                setApiKeyWhitelistUrls(apiKeyWhitelistUrls.filter((_, i) => i !== index))
+                        <div className="flex items-center gap-2 mt-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedServicesForGrant.length === services.length && services.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedServicesForGrant(services.map(svc => svc.id))
+                                } else {
+                                  setSelectedServicesForGrant([])
+                                }
                               }}
-                              className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                            >
-                              Remove
-                            </button>
-                          )}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-700 font-medium">
+                              Select All Services ({services.length} total)
+                            </span>
+                          </label>
                         </div>
-                      ))}
-                      <button
-                        onClick={() => setApiKeyWhitelistUrls([...apiKeyWhitelistUrls, ''])}
-                        className="text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        + Add URL
-                      </button>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleGenerateApiKey}
-                        disabled={!apiKeyUserId || !apiKeyName.trim() || (!apiKeyAllServices && apiKeyServiceIds.length === 0) || isGeneratingApiKey}
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isGeneratingApiKey ? (
-                          <>
-                            <Loader className="w-4 h-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          'Generate API Key'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowGenerateApiKey(false)
-                          setApiKeyUserId('')
-                          setApiKeyName('')
-                          setApiKeyServiceIds([])
-                          setApiKeyWhitelistUrls([''])
-                          setApiKeyAllServices(false)
-                          setApiKeyUserSearch('')
-                          setGeneratedApiKey(null)
-                        }}
-                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {generatedApiKey && (
-                <div className="p-6 border-b bg-green-50">
-                  <div className="flex items-start gap-3 mb-3">
-                    <Check className="w-5 h-5 text-green-600 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-green-900 mb-2">API Key Generated Successfully!</p>
-                      <p className="text-sm text-green-700 mb-3">
-                        ⚠️ <strong>Save this key now</strong> - it will only be shown once!
+                      </>
+                    )}
+                    {selectedServicesForGrant.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedServicesForGrant.length} of {services.length} service(s) selected
                       </p>
-                      <div className="bg-white border border-green-200 rounded-lg p-4 mb-3">
-                        <code className="text-sm text-gray-900 break-all">{generatedApiKey.full_key}</code>
-                      </div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedApiKey.full_key)
-                          alert('API key copied to clipboard!')
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                      >
-                        Copy API Key
-                      </button>
-                    </div>
+                    )}
                   </div>
+                  
+                  <button
+                    onClick={handleGrantServiceAccess}
+                    disabled={!selectedUserForAccess || selectedServicesForGrant.length === 0 || isGrantingAccess}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isGrantingAccess ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Granting Access...
+                      </>
+                    ) : (
+                      `Grant Access to ${selectedServicesForGrant.length > 0 ? `${selectedServicesForGrant.length} ` : ''}Service${selectedServicesForGrant.length !== 1 ? 's' : ''}`
+                    )}
+                  </button>
                 </div>
-              )}
+              </div>
               
-              {apiKeyUserId && (
+              {/* User's Service Access List */}
+              {selectedUserForAccess && (
                 <div className="p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold mb-4">User's API Keys</h3>
-                  {isLoadingUserApiKeys ? (
+                  <h3 className="text-lg font-semibold mb-4">User's Service Access</h3>
+                  {isLoadingServiceAccess ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader className="w-6 h-6 animate-spin text-blue-600" />
-                      <span className="ml-3 text-gray-600">Loading API keys...</span>
+                      <span className="ml-3 text-gray-600">Loading service access...</span>
                     </div>
-                  ) : userApiKeys[apiKeyUserId]?.length > 0 ? (
+                  ) : userServiceAccess[selectedUserForAccess]?.length > 0 ? (
                     <div className="space-y-3">
-                      {userApiKeys[apiKeyUserId].map((key: any) => (
-                        <div key={key.id} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{key.name}</h4>
-                              <p className="text-sm text-gray-600">{key.key_prefix}...</p>
-                            </div>
-                            <span className={`px-2 py-1 text-xs rounded ${
-                              key.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {key.status}
-                            </span>
+                      {userServiceAccess[selectedUserForAccess].map((access: any) => (
+                        <div key={access.id} className="border rounded-lg p-4 flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{access.service?.name || 'Service'}</h4>
+                            {access.service?.description && (
+                              <p className="text-sm text-gray-600 mt-1">{access.service.description}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              Granted: {new Date(access.granted_at).toLocaleDateString()}
+                            </p>
                           </div>
-                          {key.allowed_services && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Services: {key.allowed_services.includes('*') ? 'All Services' : key.allowed_services.join(', ')}
-                            </p>
-                          )}
-                          {key.whitelist_urls && key.whitelist_urls.length > 0 && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Whitelisted: {key.whitelist_urls.join(', ')}
-                            </p>
-                          )}
+                          <button
+                            onClick={() => handleRevokeServiceAccess(selectedUserForAccess, access.service_id)}
+                            className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
+                          >
+                            Revoke Access
+                          </button>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-center py-8">No API keys for this user yet</p>
+                    <p className="text-gray-500 text-center py-8">No service access granted yet</p>
                   )}
                 </div>
               )}
@@ -1613,6 +2354,834 @@ export default function AdminDashboard() {
           </div>
         )}
       </main>
+
+      {/* Add User Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">Add New User</h2>
+                <button
+                  onClick={() => {
+                    setShowAddUserModal(false)
+                    setNewUserFormData({
+                      email: '',
+                      password: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900 mb-2">
+                  <strong>Note:</strong> After creating the user, you'll receive their credentials. Share the email and password with the user. They can change their password after first login.
+                </p>
+                <p className="text-sm text-blue-900">
+                  <strong>Important:</strong> New users are created as <strong>INACTIVE</strong> by default. You must activate them manually, or they will be automatically activated when payment is received (when you allocate credits with payment amount).
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={newUserFormData.full_name}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, full_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newUserFormData.email}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newUserFormData.password}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, password: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                />
+                <p className="text-xs text-gray-500 mt-1">This will be the initial password. User can change it after login.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  value={newUserFormData.phone}
+                  onChange={(e) => setNewUserFormData({ ...newUserFormData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="+1234567890"
+                />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Information (Optional - can be filled later)</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.customer_name}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, customer_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Company/Organization Name"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={newUserFormData.phone_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, phone_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="+91 9876543210"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website Link
+                  </label>
+                  <input
+                    type="url"
+                    value={newUserFormData.website_link}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, website_link: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="https://example.com"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address
+                  </label>
+                  <textarea
+                    value={newUserFormData.address}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, address: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Complete address"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    GST Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.gst_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, gst_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="GST Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    MSME Certificate
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.msme_certificate}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, msme_certificate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="MSME Certificate Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Aadhaar Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.aadhar_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, aadhar_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Aadhaar Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    PAN Number
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserFormData.pan_number}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, pan_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="PAN Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Birthday
+                  </label>
+                  <input
+                    type="date"
+                    value={newUserFormData.birthday}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, birthday: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    About Me
+                  </label>
+                  <textarea
+                    value={newUserFormData.about_me}
+                    onChange={(e) => setNewUserFormData({ ...newUserFormData, about_me: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Additional information"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleCreateUser}
+                  disabled={isCreatingUser}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isCreatingUser ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create User'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddUserModal(false)
+                    setNewUserFormData({
+                      email: '',
+                      password: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Credentials Modal */}
+      {showCredentialsModal && newUserCredentials && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">User Created Successfully</h2>
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false)
+                    setNewUserCredentials(null)
+                    setCopiedField(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-900">
+                  <strong>Important:</strong> The user account is <strong>INACTIVE</strong>. You can activate it manually from the Users tab, or it will be automatically activated when payment is received (when allocating credits with payment amount).
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newUserCredentials.email}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newUserCredentials.email)
+                        setCopiedField('email')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      title="Copy Email"
+                    >
+                      {copiedField === 'email' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newUserCredentials.password}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newUserCredentials.password)
+                        setCopiedField('password')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      title="Copy Password"
+                    >
+                      {copiedField === 'password' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      const credentials = `Email: ${newUserCredentials.email}\nPassword: ${newUserCredentials.password}`
+                      navigator.clipboard.writeText(credentials)
+                      setCopiedField('both')
+                      setTimeout(() => setCopiedField(null), 2000)
+                    }}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    {copiedField === 'both' ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Both Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copy Both (Email & Password)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900">
+                  <strong>Note:</strong> Please share these credentials with the user. They can change their password after first login.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false)
+                  setNewUserCredentials(null)
+                  setCopiedField(null)
+                }}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Industry Modal */}
+      {showIndustryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">{editingIndustry ? 'Edit Industry' : 'Add Industry'}</h2>
+                <button onClick={() => { setShowIndustryModal(false); setEditingIndustry(null) }} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input type="text" value={industryFormData.name} onChange={(e) => setIndustryFormData({...industryFormData, name: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug *</label>
+                <input type="text" value={industryFormData.slug} onChange={(e) => setIndustryFormData({...industryFormData, slug: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea value={industryFormData.description} onChange={(e) => setIndustryFormData({...industryFormData, description: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" rows={3} />
+              </div>
+              <div>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={industryFormData.is_active} onChange={(e) => setIndustryFormData({...industryFormData, is_active: e.target.checked})} className="w-4 h-4" />
+                  <span className="text-sm text-gray-700">Active</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button onClick={handleSaveIndustry} disabled={isSavingMarketplace} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {isSavingMarketplace ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => { setShowIndustryModal(false); setEditingIndustry(null) }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">{editingCategory ? 'Edit Category' : 'Add Category'}</h2>
+                <button onClick={() => { setShowCategoryModal(false); setEditingCategory(null) }} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input type="text" value={categoryFormData.name} onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug *</label>
+                <input type="text" value={categoryFormData.slug} onChange={(e) => setCategoryFormData({...categoryFormData, slug: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea value={categoryFormData.description} onChange={(e) => setCategoryFormData({...categoryFormData, description: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" rows={3} />
+              </div>
+              <div>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={categoryFormData.is_active} onChange={(e) => setCategoryFormData({...categoryFormData, is_active: e.target.checked})} className="w-4 h-4" />
+                  <span className="text-sm text-gray-700">Active</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button onClick={handleSaveCategory} disabled={isSavingMarketplace} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {isSavingMarketplace ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => { setShowCategoryModal(false); setEditingCategory(null) }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Service Modal */}
+      {showServiceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">{editingService ? 'Edit Service' : 'Add Service'}</h2>
+                <button onClick={() => { setShowServiceModal(false); setEditingService(null) }} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input type="text" value={serviceFormData.name} onChange={(e) => setServiceFormData({...serviceFormData, name: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug *</label>
+                <input type="text" value={serviceFormData.slug} onChange={(e) => setServiceFormData({...serviceFormData, slug: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Endpoint Path *</label>
+                <input type="text" value={serviceFormData.endpoint_path} onChange={(e) => setServiceFormData({...serviceFormData, endpoint_path: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea value={serviceFormData.description} onChange={(e) => setServiceFormData({...serviceFormData, description: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" rows={3} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Price Per Call</label>
+                  <input type="number" step="0.01" value={serviceFormData.price_per_call} onChange={(e) => setServiceFormData({...serviceFormData, price_per_call: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select value={serviceFormData.category_id} onChange={(e) => setServiceFormData({...serviceFormData, category_id: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900">
+                    <option value="">Select Category</option>
+                    {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={serviceFormData.is_active} onChange={(e) => setServiceFormData({...serviceFormData, is_active: e.target.checked})} className="w-4 h-4" />
+                  <span className="text-sm text-gray-700">Active</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button onClick={handleSaveService} disabled={isSavingMarketplace} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {isSavingMarketplace ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => { setShowServiceModal(false); setEditingService(null) }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditUserModal && editingUserId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">Edit User</h2>
+                <button
+                  onClick={() => {
+                    setShowEditUserModal(false)
+                    setEditingUserId(null)
+                    setIsLoadingUserData(false)
+                    setEditUserFormData({
+                      email: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={isLoadingUserData}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {isLoadingUserData ? (
+              <div className="p-12 flex flex-col items-center justify-center">
+                <Loader className="w-8 h-8 animate-spin text-blue-600 mb-4" />
+                <p className="text-gray-600">Loading user data...</p>
+              </div>
+            ) : (
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editUserFormData.email}
+                  onChange={(e) => setEditUserFormData({ ...editUserFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={editUserFormData.full_name}
+                  onChange={(e) => setEditUserFormData({ ...editUserFormData, full_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  value={editUserFormData.phone}
+                  onChange={(e) => setEditUserFormData({ ...editUserFormData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="+1234567890"
+                />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserFormData.customer_name}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, customer_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Company/Organization Name"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editUserFormData.phone_number}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, phone_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="+91 9876543210"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website Link
+                  </label>
+                  <input
+                    type="url"
+                    value={editUserFormData.website_link}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, website_link: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="https://example.com"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Address
+                  </label>
+                  <textarea
+                    value={editUserFormData.address}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, address: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Complete address"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    GST Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserFormData.gst_number}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, gst_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="GST Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    MSME Certificate
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserFormData.msme_certificate}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, msme_certificate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="MSME Certificate Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Aadhaar Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserFormData.aadhar_number}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, aadhar_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Aadhaar Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    PAN Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserFormData.pan_number}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, pan_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="PAN Number"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Birthday
+                  </label>
+                  <input
+                    type="date"
+                    value={editUserFormData.birthday}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, birthday: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    About Me
+                  </label>
+                  <textarea
+                    value={editUserFormData.about_me}
+                    onChange={(e) => setEditUserFormData({ ...editUserFormData, about_me: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    placeholder="Additional information"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleUpdateUser}
+                  disabled={isUpdatingUser || !editUserFormData.email}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isUpdatingUser ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Update User'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditUserModal(false)
+                    setEditingUserId(null)
+                    setIsLoadingUserData(false)
+                    setEditUserFormData({
+                      email: '',
+                      full_name: '',
+                      phone: '',
+                      customer_name: '',
+                      phone_number: '',
+                      website_link: '',
+                      address: '',
+                      gst_number: '',
+                      msme_certificate: '',
+                      aadhar_number: '',
+                      pan_number: '',
+                      birthday: '',
+                      about_me: ''
+                    })
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  disabled={isUpdatingUser}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

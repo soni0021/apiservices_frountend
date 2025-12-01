@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
-import { Play, Copy, Check, AlertCircle, Loader } from 'lucide-react'
+import { Play, Copy, Check, AlertCircle, Loader, Search, ChevronDown } from 'lucide-react'
 
 interface ApiEndpoint {
   id: string
@@ -382,8 +382,30 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [isEndpointDropdownOpen, setIsEndpointDropdownOpen] = useState(false)
+  const [endpointSearchTerm, setEndpointSearchTerm] = useState('')
+  const endpointDropdownRef = useRef<HTMLDivElement>(null)
 
   const currentEndpoint = API_ENDPOINTS.find(e => e.id === selectedEndpoint)!
+
+  // Filter endpoints based on search term
+  const filteredEndpoints = API_ENDPOINTS.filter(endpoint =>
+    endpoint.name.toLowerCase().includes(endpointSearchTerm.toLowerCase()) ||
+    endpoint.description.toLowerCase().includes(endpointSearchTerm.toLowerCase())
+  )
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (endpointDropdownRef.current && !endpointDropdownRef.current.contains(event.target as Node)) {
+        setIsEndpointDropdownOpen(false)
+        setEndpointSearchTerm('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setFormData({ ...formData, [fieldName]: value })
@@ -496,28 +518,74 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
           </div>
         </div>
 
-        {/* Endpoint Selector */}
+        {/* Endpoint Selector with Search */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select API Endpoint
           </label>
-          <select
-            value={selectedEndpoint}
-            onChange={(e) => {
-              setSelectedEndpoint(e.target.value)
-              setFormData({})
-              setResponse(null)
-              setError(null)
-            }}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-            style={{ color: '#111827' }}
-          >
-            {API_ENDPOINTS.map(endpoint => (
-              <option key={endpoint.id} value={endpoint.id} style={{ color: '#111827' }}>
-                {endpoint.name} - {endpoint.description}
-              </option>
-            ))}
-          </select>
+          <div className="relative" ref={endpointDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsEndpointDropdownOpen(!isEndpointDropdownOpen)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white text-left flex items-center justify-between"
+            >
+              <span className="truncate">
+                {currentEndpoint.name} - {currentEndpoint.description}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-2 transition-transform ${isEndpointDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isEndpointDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                <div className="p-2 border-b border-gray-200">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={endpointSearchTerm}
+                      onChange={(e) => setEndpointSearchTerm(e.target.value)}
+                      placeholder="Search endpoints..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredEndpoints.length > 0 ? (
+                    filteredEndpoints.map((endpoint) => (
+                      <button
+                        key={endpoint.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEndpoint(endpoint.id)
+                          setFormData({})
+                          setResponse(null)
+                          setError(null)
+                          setIsEndpointDropdownOpen(false)
+                          setEndpointSearchTerm('')
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                          selectedEndpoint === endpoint.id ? 'bg-blue-100 font-medium' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {selectedEndpoint === endpoint.id && (
+                            <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{endpoint.name}</p>
+                            <p className="text-xs text-gray-600 mt-0.5 truncate">{endpoint.description}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-gray-500 text-center">No endpoints found</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Endpoint Info */}
@@ -614,7 +682,7 @@ export default function ApiTester({ apiKey }: ApiTesterProps) {
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-50 px-4 py-2 flex items-center justify-between border-b">
               <div className="flex items-center gap-3">
-                <p className="text-sm font-semibold text-gray-900">Response</p>
+              <p className="text-sm font-semibold text-gray-900">Response</p>
                 {response.__latency_ms && (
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
                     {response.__latency_ms}ms latency

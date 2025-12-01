@@ -38,31 +38,14 @@ export default function RegisterPage() {
       }
 
       // Register user
-      const registerResponse = await apiClient.post('/api/v1/auth/register', formData)
+      await apiClient.post('/api/v1/auth/register', formData)
 
-      // Auto login after registration
-      const loginResponse = await apiClient.post('/api/v1/auth/login', {
-          email: formData.email,
-          password: formData.password
-      })
-
-      // Validate response
-      if (!loginResponse.data || !loginResponse.data.access_token) {
-        throw new Error('Invalid response from server')
-        }
-
-      // Store tokens
-      try {
-      localStorage.setItem('access_token', loginResponse.data.access_token)
-      localStorage.setItem('refresh_token', loginResponse.data.refresh_token)
-      localStorage.setItem('user', JSON.stringify(loginResponse.data.user))
-      } catch (storageError) {
-        console.error('localStorage error:', storageError)
-        throw new Error('Failed to save login information. Please check your browser settings.')
-      }
-
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // Note: User is created as INACTIVE, so auto-login will fail
+      // Show message and redirect to login
+      alert('Registration successful! Your account has been created but is currently INACTIVE. Please contact the administrator to activate your account, or make a payment to activate automatically.')
+      
+      // Redirect to login page
+      router.push('/login')
     } catch (err: any) {
       console.error('Registration error:', err)
       
@@ -106,6 +89,11 @@ export default function RegisterPage() {
           <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
             <p className="text-sm sm:text-base text-gray-600">Start using our APIs today</p>
+            <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-900">
+                <strong>Note:</strong> Your account will be inactive after registration. Please contact the administrator to activate your account or make a payment to activate automatically.
+              </p>
+            </div>
           </div>
 
           {error && (
